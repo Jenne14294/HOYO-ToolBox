@@ -4,7 +4,9 @@ import tkinter as tk
 import threading
 import textwrap
 import functions
+import webview
 from tkinter import messagebox, filedialog
+
 
 local_folder_path = os.environ.get("LOCALAPPDATA")
 data_path = os.path.join(local_folder_path, "HoYo ToolBox") # pyright: ignore[reportCallIssue, reportArgumentType]
@@ -21,8 +23,6 @@ selected_game_path = tk.StringVar()
 def change_account(account):
     selected_account.set(account)
     show_record_options()
-
-    
 
 def get_options():
     account_options = []
@@ -355,6 +355,16 @@ def export_to_folder():
         except Exception as e:
             messagebox.showerror("錯誤", f"檔案輸出失敗：{e}")
 
+def create_webview():
+    if selected_game.get() == "原神":
+        url = "https://act.hoyolab.com/app/community-game-records-sea/index.html?bbs_presentation_style=fullscreen&v=350&gid=2&utm_source=hoyolab&utm_medium=tools&bbs_theme=dark&bbs_theme_device=0#/ys"
+
+    elif selected_game.get() == "崩鐵":
+        url = "https://act.hoyolab.com/app/community-game-records-sea/rpg/index.html?bbs_presentation_style=fullscreen&gid=6&utm_campaign=battlechronicle&utm_id=6&utm_medium=tools&utm_source=hoyolab&v=101&lang=zh-tw&bbs_theme=dark&bbs_theme_device=0#/hsr"
+        
+    webview.create_window("WebView", url, width=800, height=600)
+    webview.start()
+
 def dummy_function():
     messagebox.showinfo("提示", "這是一個尚未實現的功能")
 
@@ -365,9 +375,7 @@ def hoyo_toolbox():
     for widget in game_frame.winfo_children():
         widget.destroy()
 
-    message_label.config(text="")
-    messagebox.showinfo("提示", "HOYO工具箱功能尚未實現")
-    show_record_options()
+    create_webview()
 
 def show_selected_path():
     """顯示使用者選擇的遊戲路徑"""

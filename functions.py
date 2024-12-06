@@ -20,6 +20,7 @@ exception = 123
 def fetch_data_by_api(command, path, categories, gacha_size, game):
     result = subprocess.run(["powershell", "-Command", "Get-Clipboard", command], capture_output=True, text=True).stdout.split("\n")
     result = result[-3]
+    UID = ""
 
     if not result.startswith("https"):
         exception.replace("Fetch failed!")
@@ -55,7 +56,8 @@ def fetch_data_by_api(command, path, categories, gacha_size, game):
 
         if "info" not in data:
             data["info"] = {
-                "export_app":"HOYO ToolBox"
+                "export_app":"HOYO ToolBox",
+                "timezone": resdict["data"]["region_time_zone"] if "region_time_zone" in resdict["data"] else 0
             }
 
         data[key] = []
@@ -78,6 +80,9 @@ def fetch_data_by_api(command, path, categories, gacha_size, game):
             if resdict["data"]["list"] == []:
                 time.sleep(0.5)
                 break
+                
+            if UID == "":
+                UID = resdict["data"]["list"][0]["uid"]
  
             if "lang" not in data["info"]:
                 data["info"]["lang"] = resdict["data"]["list"][0]["lang"]
@@ -111,6 +116,8 @@ def fetch_data_by_api(command, path, categories, gacha_size, game):
 
     with open(path, "w", encoding="utf8") as file:
         json.dump(data, file, indent=4, ensure_ascii=False)
+
+    
 
 def get_GSdata_by_api():
     command = "Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex \"&{$((New-Object System.Net.WebClient).DownloadString('https://gist.github.com/MadeBaruna/1d75c1d37d19eca71591ec8a31178235/raw/getlink.ps1'))} global\""
@@ -149,7 +156,7 @@ def get_ZZZdata_by_api():
 
     fetch_data_by_api(command, path, category, gacha_size=20, game="絕區零")
 
-def get_average(file_path, game, input_text, input_type):
+def get_average(file_path, game, input_text):
     # 定義標準角色和武器
     gi_standard_char = ["莫娜", "琴", "迪盧克", "迪希雅", "七七", "提納里", "刻晴"]
     hsr_standard_char = ["瓦爾特", "姬子", "彥卿", "布洛妮婭", "克拉拉", "白露", "傑帕德"]
@@ -307,6 +314,7 @@ def compare_input_data(system_path, input_data, game):
         keys.append("bangboo")
 
     for key in keys:
+        (system_data, input_data)
         input_latest_id = input_data[key][0]['id'] if (key in input_data) and (len(input_data[key]) > 0) else ""
         input_oldest_id = input_data[key][-1]['id'] if (key in input_data) and (len(input_data[key]) > 0) else ""
 
@@ -500,16 +508,17 @@ def export_json(file_path, folder_path, game):
 
         if game == "原神":
             new_data["list"].extend(data[key])
-            new_data['list'].sort(key=lambda x: datetime.strptime(x['time'], '%Y-%m-%d %H:%M:%S'))
+            new_data['list'].sort(key=lambda x: x['id'])
 
         if game == "崩鐵":
             new_data["hkrpg"][0]["list"].extend(data[key])
-            new_data["hkrpg"][0]['list'].sort(key=lambda x: datetime.strptime(x['time'], '%Y-%m-%d %H:%M:%S'))
+            new_data["hkrpg"][0]['list'].sort(key=lambda x: x['id'])
 
         if game == "絕區零":
             new_data["nap"][0]["list"].extend(data[key])
-            new_data["hknap"][0]['list'].sort(key=lambda x: datetime.strptime(x['time'], '%Y-%m-%d %H:%M:%S'))
+            new_data["hknap"][0]['list'].sort(key=lambda x: x['id'])
 
+    new_data["info"]["export_app"] = "HOYO ToolBox"
 
     with open(folder_path, "w", encoding="utf8") as new_file:
         json.dump(new_data, new_file, indent=4, ensure_ascii=False)

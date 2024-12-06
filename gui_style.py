@@ -1,10 +1,15 @@
 import os
 import json
+import sys
 import customtkinter as ctk
-from tkinter import messagebox, filedialog
 import threading
 import textwrap
 import functions
+
+from tkinter import messagebox, filedialog
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QPushButton, QHBoxLayout
+from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtWebEngineWidgets import QWebEngineView
 
 # Initialize custom tkinter
 ctk.set_appearance_mode("System")  # Modes: "System" (default), "Dark", "Light"
@@ -12,6 +17,180 @@ ctk.set_default_color_theme("blue")  # Themes: "blue" (default), "dark-blue", "g
 
 local_folder_path = os.environ.get("LOCALAPPDATA")
 data_path = os.path.join(local_folder_path, "HoYo ToolBox")  # pyright: ignore[reportCallIssue, reportArgumentType]
+user_path = os.path.join(data_path, "user_data")
+
+# PyQt5部分
+def start_pyqt5_app(game):
+    if game == "原神":
+        url = "https://act.hoyolab.com/app/community-game-records-sea/index.html?bbs_presentation_style=fullscreen&bbs_auth_required=true&v=104&gid=2&utm_source=hoyolab&utm_medium=tools&bbs_theme=dark&bbs_theme_device=1#/ys"
+    elif game == "崩鐵":
+        url = "https://act.hoyolab.com/app/community-game-records-sea/rpg/index.html?bbs_presentation_style=fullscreen&gid=6&utm_campaign=battlechronicle&utm_id=6&utm_medium=tools&utm_source=hoyolab&v=101&bbs_theme=dark&bbs_theme_device=0#/hsr"
+    elif game == "絕區零":
+        url = "https://act.hoyolab.com/app/zzz-game-record/index.html?hyl_presentation_style=fullscreen&utm_campaign=battlechronicle&utm_id=8&utm_medium=tools&utm_source=hoyolab&lang=zh-tw&bbs_theme=dark&bbs_theme_device=0#/zzz"
+
+    app = QApplication([])
+
+    # 創建主窗口
+    window = QWidget()
+    window.setWindowTitle("HOYO 工具箱")
+
+    # 設定窗口的大小
+    window.resize(1200, 800)
+
+    # 設定窗口的背景顏色
+    window.setStyleSheet("background-color: #2f2f2f;")
+
+    # 創建QWebEngineView來顯示網頁
+    webview = QWebEngineView()
+    webview.setUrl(QUrl(url))
+
+    # 設置Webview的樣式
+    webview.setStyleSheet("border: none;")
+
+    # 創建佈局
+    layout = QVBoxLayout()
+
+    # 添加標題文字
+    title_label = QLabel("選擇遊戲以查看詳細資料")
+    title_label.setStyleSheet("font-size: 24px; color: #ffffff; font-weight: bold; margin-bottom: 20px;")
+    title_label.setFixedHeight(50)
+    layout.addWidget(title_label)
+
+    # 創建水平布局來放下拉選單和四個按鈕
+    h_layout = QHBoxLayout()
+
+    # 創建下拉選單
+    combo_box = QComboBox()
+    combo_box.setFixedWidth(150)  # 设置固定宽度为 150
+    combo_box.addItem("原神")
+    combo_box.addItem("崩鐵")
+    combo_box.addItem("絕區零")
+
+    # 設定下拉選單的樣式
+    combo_box.setStyleSheet("""
+        QComboBox {
+            background-color: #444444;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        QComboBox::drop-down {
+            background-color: #555555;
+        }
+    """)
+
+    # 當選擇項目改變時的處理函數
+    def on_combobox_changed(index):
+        selected_option = combo_box.currentText()
+        if selected_option == "原神":
+            url = "https://act.hoyolab.com/app/community-game-records-sea/index.html?bbs_presentation_style=fullscreen&bbs_auth_required=true&v=104&gid=2&utm_source=hoyolab&utm_medium=tools&bbs_theme=dark&bbs_theme_device=1#/ys"
+
+        elif selected_option == "崩鐵":
+            url = "https://act.hoyolab.com/app/community-game-records-sea/rpg/index.html?bbs_presentation_style=fullscreen&gid=6&utm_campaign=battlechronicle&utm_id=6&utm_medium=tools&utm_source=hoyolab&v=101&bbs_theme=dark&bbs_theme_device=0#/hsr"
+
+        elif selected_option == "絕區零":
+            url = "https://act.hoyolab.com/app/zzz-game-record/index.html?hyl_presentation_style=fullscreen&utm_campaign=battlechronicle&utm_id=8&utm_medium=tools&utm_source=hoyolab&lang=zh-tw&bbs_theme=dark&bbs_theme_device=0#/zzz"
+
+        selected_game.set(selected_option)
+        webview.setUrl(QUrl(url))
+
+    # 設置當選擇的項目改變時觸發的事件
+    combo_box.currentIndexChanged.connect(on_combobox_changed)
+
+    # 創建按鈕外觀
+    combo_box.setFixedHeight(40)
+    button_style = "background-color: #444444; color: white; padding: 10px; border-radius: 5px; font-size: 16px;"
+
+    # 創建按鈕並設置樣式
+    button1 = QPushButton("查看戰績")
+    button2 = QPushButton("每日簽到")
+    button3 = QPushButton("兌換碼")
+
+    if selected_game.get() != "絕區零":
+        button4 = QPushButton("互動地圖")
+        button4.setStyleSheet(button_style)
+    
+    # 設定按鈕樣式
+    button1.setStyleSheet(button_style)
+    button2.setStyleSheet(button_style)
+    button3.setStyleSheet(button_style)
+
+    # 按鈕按下時的處理函數
+    def on_button_click(button_name):
+        print(selected_game.get(), button_name)
+        if "戰績" in button_name:
+            if selected_game.get() == "原神":
+                url = "https://act.hoyolab.com/app/community-game-records-sea/index.html?bbs_presentation_style=fullscreen&bbs_auth_required=true&v=104&gid=2&utm_source=hoyolab&utm_medium=tools&bbs_theme=dark&bbs_theme_device=1#/ys"
+            
+            elif selected_game.get() == "崩鐵":
+                url = "https://act.hoyolab.com/app/community-game-records-sea/rpg/index.html?bbs_presentation_style=fullscreen&gid=6&utm_campaign=battlechronicle&utm_id=6&utm_medium=tools&utm_source=hoyolab&v=101&lang=zh-tw&bbs_theme=dark&bbs_theme_device=0#/hsr"
+
+            elif selected_game.get() == "絕區零":
+                url = "https://act.hoyolab.com/app/zzz-game-record/index.html?hyl_presentation_style=fullscreen&utm_campaign=battlechronicle&utm_id=8&utm_medium=tools&utm_source=hoyolab&bbs_theme=dark&bbs_theme_device=0#/zzz"
+
+        elif "簽到" in button_name:
+            if selected_game.get() == "原神":
+                url = "https://act.hoyolab.com/ys/event/signin-sea-v3/index.html?act_id=e202102251931481&utm_source=hoyolab&utm_medium=tools&v=0928&lang=zh-tw&bbs_theme=dark&bbs_theme_device=1"
+
+            elif selected_game.get() == "崩鐵":
+                url = "https://act.hoyolab.com/bbs/event/signin/hkrpg/e202303301540311.html?act_id=e202303301540311&hyl_auth_required=true&hyl_presentation_style=fullscreen&utm_source=hoyolab&utm_medium=tools&utm_campaign=checkin&utm_id=6&lang=zh-tw&bbs_theme=dark&bbs_theme_device=0"
+
+            elif selected_game.get() == "絕區零":
+                url = "https://act.hoyolab.com/bbs/event/signin/zzz/e202406031448091.html?act_id=e202406031448091&hyl_auth_required=true&hyl_presentation_style=fullscreen&utm_campaign=checkin&utm_id=8&utm_medium=tools&utm_source=hoyolab&lang=zh-tw&bbs_theme=dark&bbs_theme_device=0"
+
+        elif "兌換碼" in button_name:
+            if selected_game.get() == "原神":
+                url = "https://genshin.hoyoverse.com/zh-tw/gift"
+
+            elif selected_game.get() == "崩鐵":
+                url = "https://hsr.hoyoverse.com/gift?lang=zh-tw"
+
+            elif selected_game.get() == "絕區零":
+                url = "https://zenless.hoyoverse.com/redemption?lang=zh-tw"
+
+
+        elif "地圖" in button_name:
+            if selected_game.get() == "原神":
+                url = "https://act.hoyolab.com/ys/app/interactive-map/index.html?bbs_presentation_style=no_header&utm_source=hoyolab&utm_medium=tools&lang=zh-tw&bbs_theme=dark&bbs_theme_device=1#/map/2?shown_types=3,154,212"
+
+            elif selected_game.get() == "崩鐵":
+                url = "https://act.hoyolab.com/sr/app/interactive-map/index.html?hyl_presentation_style=fullscreen&utm_campaign=map&utm_id=6&utm_medium=tools&utm_source=hoyolab&lang=zh-tw&bbs_theme=dark&bbs_theme_device=0#/map/325?zoom=-1.00&center=92.00,41.00"
+
+            elif selected_game.get() == "絕區零":
+                url = "https://act.hoyolab.com/app/zzz-game-record/index.html?hyl_presentation_style=fullscreen&utm_campaign=battlechronicle&utm_id=8&utm_medium=tools&utm_source=hoyolab&bbs_theme=dark&bbs_theme_device=0#/zzz"
+
+
+        webview.setUrl(QUrl(url))
+
+    # 設置按鈕點擊事件
+    button1.clicked.connect(lambda: on_button_click("戰績"))
+    button2.clicked.connect(lambda: on_button_click("簽到"))
+    button3.clicked.connect(lambda: on_button_click("兌換碼"))
+    button4.clicked.connect(lambda: on_button_click("地圖"))
+
+    # 將下拉選單和按鈕放入水平佈局中
+    h_layout.addWidget(combo_box)
+    h_layout.addWidget(button1)
+    h_layout.addWidget(button2)
+    h_layout.addWidget(button3)
+
+    if selected_game.get() != "絕區零":
+        h_layout.addWidget(button4)
+
+    # 添加到主佈局中
+    layout.addLayout(h_layout)
+
+    # 設定網頁顯示的佈局
+    layout.addWidget(webview)
+
+    window.setLayout(layout)
+
+    # 顯示窗口
+    window.show()
+
+    # 開始應用的事件循環
+    app.exec_()
 
 # Main window
 root = ctk.CTk()
@@ -306,7 +485,7 @@ message_label = ctk.CTkLabel(root, text="", font=("Arial", 14))
 button_frame = ctk.CTkFrame(root)
 button_frame.pack(side="bottom", pady=10)
 ctk.CTkButton(button_frame, text="抽卡紀錄", command=show_record_options).pack(side="left", padx=10)
-ctk.CTkButton(button_frame, text="HOYO工具箱", command=lambda: messagebox.showinfo("提示", "HOYO工具箱功能尚未實現")).pack(side="left", padx=10)
+ctk.CTkButton(button_frame, text="HOYO工具箱", command=lambda: start_pyqt5_app(selected_game.get())).pack(side="left", padx=10)
 ctk.CTkButton(button_frame, text="遊戲功能", command=lambda: messagebox.showinfo("提示", "遊戲功能尚未實現")).pack(side="left", padx=10)
 
 # Run the app
