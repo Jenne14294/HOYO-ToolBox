@@ -1738,9 +1738,14 @@ class WebWindow(QWidget):
         self.setWindowTitle('Hoyoverse 登入')
         self.setGeometry(0, 0, 800, 600)
 
-        # Create a QWebEngineView to show the webpage
+        # 主視窗的 QWebEngineView
         self.browser = QWebEngineView()
-        self.browser.setUrl(QUrl('https://account.hoyoverse.com/'))  # Set the URL to display
+
+        # 將 CustomWebEnginePage 設為主視窗的頁面處理類
+        self.browser.setPage(CustomWebEnginePage(self.browser))
+        self.browser.setUrl(QUrl('https://account.hoyoverse.com/'))  # 設置初始 URL
+
+        # 使用 QVBoxLayout 布局
         layout = QVBoxLayout()
         layout.addWidget(self.browser)
         self.setLayout(layout)
