@@ -52,12 +52,15 @@ def download_release():
         name_list = asset['name'].split(".")
 
         data['url'] = asset['browser_download_url']
-        data['version'] = name_list[2][1:] + "." + name_list[3]
+        data['version'] = name_list[2][1:]
         data['name'] = asset['name']
         data['total_size'] = asset['size']
         data['path'] = f"{temp_path}/HOYO ToolBox/{asset['name']}"
-        path = f"{temp_path}/HOYO ToolBox/temp"
 
+        for i in range(3, len(name_list) - 1):
+            data['version'] += f".{name_list[i]}"
+
+        path = f"{temp_path}/HOYO ToolBox/temp"
         if not os.path.exists(path):
             os.mkdir(path)
 
@@ -68,6 +71,7 @@ def apply_update(zip_path, version):
     config = configparser.ConfigParser()
     config.read('config.ini')
     path = f"{temp_path}/HOYO ToolBox/temp"
+    print(version)
     # 檢查解壓縮目的地資料夾是否存在，若不存在則創建
     if not os.path.exists(path):
         os.makedirs(path)
@@ -78,6 +82,7 @@ def apply_update(zip_path, version):
         zip_ref.extractall(path)
     
     file_path = (f"{path}/HOYO ToolBox v{version}")
+    print(file_path)
 
     for file in os.listdir(file_path):
         source_path = os.path.join(file_path, file)
