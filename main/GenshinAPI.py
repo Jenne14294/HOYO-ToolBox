@@ -52,8 +52,8 @@ class API_function():
 
         return account_list
 
-    async def get_genshin_diary(self):
-        diary = await self.client.get_genshin_diary()
+    async def get_genshin_diary(self, uid):
+        diary = await self.client.get_genshin_diary(uid)
         diary_data = json.loads(diary.model_dump_json())
         uid = diary_data["uid"]
         month = diary_data["month"]
@@ -64,7 +64,7 @@ class API_function():
             json.dump(diary_data, file, indent=4, ensure_ascii=False)
 
     async def get_genshin_notes(self, uid):
-        info = await self.client.get_partial_genshin_user(uid=uid)
+        info = await self.client.get_genshin_user(uid=uid)
         notes = await self.client.get_genshin_notes(uid=uid)
 
         info_data = json.loads(info.model_dump_json())
@@ -84,8 +84,8 @@ class API_function():
 
         return account_list
 
-    async def get_starrail_diary(self):
-        diary = await self.client.get_starrail_diary()
+    async def get_starrail_diary(self, uid):
+        diary = await self.client.get_starrail_diary(uid)
         diary_data = json.loads(diary.model_dump_json())
         uid = diary_data["uid"]
         month = str(diary_data["month"])[4:]
@@ -113,8 +113,8 @@ class API_function():
 
         return account_list
 
-    async def get_zzz_diary(self):
-        diary = await self.client.get_zzz_diary()
+    async def get_zzz_diary(self, uid):
+        diary = await self.client.get_zzz_diary(uid)
         diary_data = json.loads(diary.model_dump_json())
         uid = diary_data["uid"]
         month = str(diary_data["data_month"])[4:]

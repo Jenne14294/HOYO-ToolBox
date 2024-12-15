@@ -6,7 +6,6 @@ import GenshinAPI
 import functions
 import sys
 import isodate
-import requests
 import subprocess
 
 from PyQt5.QtWidgets import QApplication, QVBoxLayout, QHBoxLayout, QRadioButton, QButtonGroup, QLabel, QComboBox, QWidget, QFrame, QPushButton, QScrollArea, QFileDialog, QMessageBox, QDialog, QTextEdit, QStackedWidget, QProgressBar
@@ -16,7 +15,7 @@ from PyQt5.QtGui import QFont, QFontDatabase, QIcon, QPixmap, QBrush, QColor
 from PyQt5.QtChart import QChart, QChartView, QBarSet, QBarSeries, QBarCategoryAxis
 
 from datetime import datetime, timedelta
-from genshin.errors import AccountNotFound
+from genshin.errors import AccountNotFound, GenshinException
 
 local_folder_path = os.environ.get("LOCALAPPDATA")
 data_path = os.path.join(local_folder_path, "HoYo ToolBox") # pyright: ignore[reportCallIssue, reportArgumentType]
@@ -28,16 +27,14 @@ language_dict = {
     "ja-JP":"日本語"
 }
 
-if not os.path.exists(data_path):
-    os.mkdir(data_path)
-    os.mkdir(f"{data_path}/user_data")
-    os.mkdir(f"{data_path}/diary")
+os.makedirs(f"{data_path}/user_data",exist_ok=True)
+os.makedirs(f"{data_path}/diary",exist_ok=True)
 
 if not os.path.exists("./config.ini"):
     config.add_section('General')
     config.set('General', 'Author', 'Jenne14294')
     config.set('General', 'AppName', 'HOYO ToolBox')
-    config.set('General', 'version', '1.1')
+    config.set('General', 'version', '1.12')
 
     config.add_section('Settings')
     config.set('Settings', 'Language', 'en-US')
@@ -1468,30 +1465,31 @@ class MainWindow(QWidget):
             
     def get_diary(self):
         selected_game = self.button_group.checkedButton().text()
+        accountId = self.game_account_combo.currentText()
         
         try:
-
             API_function = GenshinAPI.API_function()
 
             
             if selected_game == "原神":
-                asyncio.run(API_function.get_genshin_diary())
+                asyncio.run(API_function.get_genshin_diary(accountId))
                 
 
             elif selected_game == "崩鐵":
-                asyncio.run(API_function.get_starrail_diary())
+                asyncio.run(API_function.get_starrail_diary(accountId))
 
             elif selected_game == "絕區零":
-                asyncio.run(API_function.get_zzz_diary())
+                asyncio.run(API_function.get_zzz_diary(accountId))
             
             self.show_now_income_calander()
+            return
 
-        except Exception as e:
-            print(e)
+        except GenshinException as e:
+            text = "等級不足，無法開啟月曆" if "-501101" in str(e) else "帳號不存在，請先登入"
             error_dialog = QMessageBox(self)
             error_dialog.setIcon(QMessageBox.Critical)  # 設置為錯誤類型
             error_dialog.setWindowTitle("錯誤")
-            error_dialog.setInformativeText(f"找不到帳號紀錄，請先登入")
+            error_dialog.setInformativeText(text)
             error_dialog.setStandardButtons(QMessageBox.Ok)  # 添加「確定」按鈕
 
             error_dialog.exec_()
