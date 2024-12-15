@@ -1122,14 +1122,14 @@ class MainWindow(QWidget):
 
         if selected_game == "原神":
             data_text = f"""
-            今日原石數：{data['day_data']['current_primogems']} | 本日摩拉數：{data['day_data']['current_mora']}\n
+            本日原石數：{data['day_data']['current_primogems']} | 本日摩拉數：{data['day_data']['current_mora']}\n
             本月原石數：{data['data']['current_primogems']} | 本月摩拉數：{data['data']['current_mora']}\n
             原石增減率：{data['data']['primogems_rate']} % | 摩拉增減率：{data['data']['mora_rate']} %
             """
 
         if selected_game == "崩鐵":
             data_text = f"""
-            今日星瓊數：{data['day_data']['current_hcoin']} | 本日星瓊數：{data['day_data']['current_hcoin']}\n
+            本日星瓊數：{data['day_data']['current_hcoin']} | 本日票券數：{data['day_data']['current_rails_pass']}\n
             本月星瓊數：{data['data']['current_hcoin']} | 本月票券數：{data['data']['current_rails_pass']}\n
             星瓊增減率：{data['data']['hcoin_rate']} % | 票券增減率：{data['data']['rails_rate']} %
             """
@@ -1460,6 +1460,7 @@ class MainWindow(QWidget):
             self.show_game_options()
 
     def open_website(self):
+
         self.web_window = WebWindow()
         self.web_window.show()
             
@@ -1734,12 +1735,12 @@ class CustomWebEnginePage(QWebEnginePage):
 class WebWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Hoyolab 登入')
+        self.setWindowTitle('Hoyoverse 登入')
         self.setGeometry(0, 0, 800, 600)
 
         # Create a QWebEngineView to show the webpage
         self.browser = QWebEngineView()
-        self.browser.setUrl(QUrl('https://www.hoyolab.com'))  # Set the URL to display
+        self.browser.setUrl(QUrl('https://account.hoyoverse.com/'))  # Set the URL to display
         layout = QVBoxLayout()
         layout.addWidget(self.browser)
         self.setLayout(layout)
