@@ -249,9 +249,11 @@ def get_average(file_path, game, input_text):
         average_character = round(len(characters) / len(fivestar_char), 2) if len(fivestar_char) > 0 else None
         average_weapon = round(len(weapons) / len(fivestar_weapon), 2) if len(fivestar_weapon) > 0 else None
         
-        char_guarantee_rate = f"{round(((2 * len(limit_char) - len(fivestar_char)) / len(limit_char)) * 100, 2)} %" if len(fivestar_char) > 0 else None 
+        char_guarantee_rate = f"{round(((2 * len(limit_char) - len(fivestar_char)) / len(limit_char)) * 100, 2)} %" if len(fivestar_char) > 0 else None
+        char_guarantee_rate = "0.0 %" if "-" in char_guarantee_rate else char_guarantee_rate
+
         weapon_guarantee_rate = f"{round(((2 * len(limit_weapon) - len(fivestar_weapon)) / len(limit_weapon)) * 100, 2)} %" if len(fivestar_weapon) > 0 else None
-        
+        weapon_guarantee_rate = "0.0 %" if "-" in weapon_guarantee_rate else weapon_guarantee_rate        
 
         status_text = f"限定池抽數：{len(characters)} | 限定角色數：{len(limit_char)} | 平均限定金：{average_limit_character} | 五星角色數：{len(fivestar_char)} | 平均五星金：{average_character} | 保底不歪率：{char_guarantee_rate}\n"
         status_text += f"武器池抽數：{len(weapons)} | 限定武器數：{len(limit_weapon)} | 平均限定金：{average_limit_weapon} | 五星武器數：{len(fivestar_weapon)} | 平均五星金：{average_weapon} | 保底不歪率：{weapon_guarantee_rate}\n"
@@ -259,12 +261,14 @@ def get_average(file_path, game, input_text):
         if game == "原神":
             average_limit_collection = round(len(collection) / len(limit_coll),2) if len(limit_coll) > 0 else None
             average_collection = round(len(collection) / len(fivestar_coll),2) if len(fivestar_coll) > 0 else None 
-            coll_guarantee_rate = f"{round(((2 * (len(limit_coll) - len(fivestar_coll))) / len(limit_coll)), 2) * 100} %" if len(fivestar_coll) > 0 else None 
+            coll_guarantee_rate = f"{round(((2 * (len(limit_coll) - len(fivestar_coll))) / len(limit_coll)), 2) * 100} %" if len(fivestar_coll) > 0 else None
+            coll_guarantee_rate = "0.0 %" if "-" in coll_guarantee_rate else coll_guarantee_rate
 
             status_text += f"集錄池抽數：{len(collection)} | 限定數量：{len(limit_coll)} | 平均限定金：{average_limit_collection} | 五星數量：{len(fivestar_coll)} | 平均五星金：{average_collection} | 保底不歪率：{coll_guarantee_rate}\n"
 
         if game == "絕區零":
             average_bangboo = round(len(bangboo) / len(fivestar_bangboo),2) if len(fivestar_bangboo) > 0 else None
+
             status_text += f"邦布池抽數：{len(bangboo)} | 邦布五星數：{len(fivestar_bangboo)} | 平均五星數：{average_bangboo}\n"
 
         if game != "絕區零":

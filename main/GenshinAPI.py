@@ -5,6 +5,12 @@ import os
 
 from datetime import datetime
 
+
+local_folder_path = os.environ.get("LOCALAPPDATA")
+data_path = os.path.join(local_folder_path, "HoYo ToolBox") # pyright: ignore[reportCallIssue, reportArgumentType]
+diary_path = os.path.join(data_path, "diary")
+cookie_file_path = os.path.join(data_path, "QtWebEngine/Default/Cookies")
+
 def read_cookies(cookie_file_path):
     if not os.path.exists(cookie_file_path):
         print(f"檔案 {cookie_file_path} 不存在!")
@@ -22,13 +28,7 @@ def read_cookies(cookie_file_path):
         cookie_dict[cookie[0]] = cookie[1]
 
     conn.close()
-
     return cookie_dict
-
-local_folder_path = os.environ.get("LOCALAPPDATA")
-data_path = os.path.join(local_folder_path, "HoYo ToolBox") # pyright: ignore[reportCallIssue, reportArgumentType]
-diary_path = os.path.join(data_path, "diary")
-cookie_file_path = os.path.join(data_path, "QtWebEngine/Default/Cookies")
 
 class CookieNotFound(Exception):
     pass
@@ -48,6 +48,7 @@ class API_function():
     #原神
     async def get_genshin_accounts(self):
         accounts = await self.client.get_game_accounts()
+        print(accounts)
         account_list = [str(account.uid) for account in accounts if account.game.name == "GENSHIN"]
 
         return account_list

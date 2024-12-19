@@ -34,7 +34,7 @@ if not os.path.exists("./config.ini"):
     config.add_section('General')
     config.set('General', 'Author', 'Jenne14294')
     config.set('General', 'AppName', 'HOYO ToolBox')
-    config.set('General', 'version', '1.12')
+    config.set('General', 'version', '1.13')
 
     config.add_section('Settings')
     config.set('Settings', 'Language', 'en-US')
@@ -1003,7 +1003,7 @@ class MainWindow(QWidget):
             resin_time = isodate.parse_duration(data['remaining_resin_recovery_time'])
             resin_recover_time = (current_time + resin_time)
             resin_formatted_time = "體力已滿！" if resin_time == timedelta(0) else resin_recover_time.strftime("%H:%M:%S")
-            resin_day = (resin_recover_time - current_time).days
+            resin_day = resin_recover_time.day - current_time.day
             resin_day_label = "" if resin_time == timedelta(0) else "今天" if resin_day == 0 else "明天" if resin_day == 1 else "後天" if resin_day == 2 else f"{resin_day} 天後"
 
 
@@ -1011,7 +1011,7 @@ class MainWindow(QWidget):
 
             currency_recover_time = "" if currency_time == timedelta(0) else (current_time + currency_time)
             currency_formatted_time = "寶錢已滿！" if currency_time == timedelta(0) else currency_recover_time.strftime("%H:%M:%S")
-            currency_day = "" if currency_time == timedelta(0) else (currency_recover_time - current_time).days
+            currency_day = "" if currency_time == timedelta(0) else currency_recover_time.day - current_time.day
             currency_day_label = "" if currency_time == timedelta(0) else "今天" if currency_day == 0 else "明天" if currency_day == 1 else "後天" if currency_day == 2 else f"{currency_day} 天後"
 
             claim_commission = "已領取！" if data['claimed_commission_reward'] else "未領取！"
@@ -1019,7 +1019,7 @@ class MainWindow(QWidget):
             transformer_time = None if data['remaining_transformer_recovery_time'] == None else isodate.parse_duration(data['remaining_transformer_recovery_time'])
             transformer_recover_time = "" if transformer_time == timedelta(0) else "" if transformer_time == None else  (current_time + transformer_time)
             transformer_formatted_time = "冷卻結束！" if transformer_time == timedelta(0) else "" if transformer_time == None else transformer_recover_time.strftime("%H:%M:%S")
-            transformer_day = "" if not isinstance(transformer_recover_time, datetime) else (transformer_recover_time - current_time).days
+            transformer_day = "" if not isinstance(transformer_recover_time, datetime) else transformer_recover_time.day - current_time.day
             transformer_day_label = "" if transformer_day == "" else "今天" if transformer_day == 0 else "明天" if transformer_day == 1 else "後天" if transformer_day == 2 else f"{transformer_day} 天後"
 
             content = f"原粹樹脂：{data['current_resin']} / {data['max_resin']} | 完全恢復時間：{resin_day_label} {resin_formatted_time}\n\n洞天寶錢：{data['current_realm_currency']} / {data['max_realm_currency']} | 到達上限時間：{currency_day_label} {currency_formatted_time}\n\n每日委託：{data['completed_commissions']} / {data['max_commissions']} | 委託獎勵：{claim_commission}\n\n周本減免：{data['remaining_resin_discounts']} / {data['max_resin_discounts']}\n\n質變儀冷卻：{transformer_day_label} {transformer_formatted_time}\n委託派遣：\n\n"
@@ -1035,7 +1035,7 @@ class MainWindow(QWidget):
             resin_time = isodate.parse_duration(data['stamina_recover_time'])
             resin_recover_time = (current_time + resin_time)
             resin_formatted_time = "體力已滿！" if resin_time == timedelta(0) else resin_recover_time.strftime("%H:%M:%S")
-            resin_day = (resin_recover_time - current_time).days
+            resin_day = resin_recover_time.day - current_time.day
             resin_day_label = "" if resin_time == timedelta(0) else "今天" if resin_day == 0 else "明天" if resin_day == 1 else "後天" if resin_day == 2 else f"{resin_day} 天後"
 
             claim_commission = "已領取！" if data['current_train_score'] == data['max_train_score'] else "未領取！"
@@ -1059,7 +1059,7 @@ class MainWindow(QWidget):
             resin_time = timedelta(seconds=data['battery_charge']['seconds_till_full'])
             resin_recover_time = (current_time + resin_time)
             resin_formatted_time = "體力已滿！" if resin_time == timedelta(0) else resin_recover_time.strftime("%H:%M:%S")
-            resin_day = (resin_recover_time - current_time).days
+            resin_day = resin_recover_time.day - current_time.day
             resin_day_label = "" if resin_time == timedelta(0) else "今天" if resin_day == 0 else "明天" if resin_day == 1 else "後天" if resin_day == 2 else f"{resin_day} 天後"
 
             scratch_card = "已完成" if data['scratch_card_completed'] else "未完成"
@@ -1731,6 +1731,7 @@ class CustomWebEnginePage(QWebEnginePage):
 
         popup_view.show()
         return popup_view.page()
+
     
 class WebWindow(QWidget):
     def __init__(self):
@@ -1745,10 +1746,19 @@ class WebWindow(QWidget):
         self.browser.setPage(CustomWebEnginePage(self.browser))
         self.browser.setUrl(QUrl('https://account.hoyoverse.com/'))  # 設置初始 URL
 
+        # 完成按鈕
+        self.complete_button = QPushButton('完成')
+        self.complete_button.clicked.connect(self.on_complete_button_clicked)
+
         # 使用 QVBoxLayout 布局
         layout = QVBoxLayout()
         layout.addWidget(self.browser)
+        layout.addWidget(self.complete_button)
         self.setLayout(layout)
+
+    def on_complete_button_clicked(self):
+        cookies = GenshinAPI.CookieFunction.read_cookies(f"{data_path}/QtWebEngine/Default/Cookies")
+        self.close()
 
 
 
