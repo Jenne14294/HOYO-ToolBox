@@ -1757,7 +1757,9 @@ class WebWindow(QWidget):
         self.setLayout(layout)
 
     def on_complete_button_clicked(self):
-        cookies = GenshinAPI.CookieFunction.read_cookies(f"{data_path}/QtWebEngine/Default/Cookies")
+        cookies = GenshinAPI.read_cookies(f"{data_path}/QtWebEngine/Default/Cookies")
+        id = cookies['account_id_v2']
+        GenshinAPI.write_cookie(id)
         self.close()
 
 

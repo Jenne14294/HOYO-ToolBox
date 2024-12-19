@@ -2,6 +2,7 @@ import sqlite3
 import json
 import genshin
 import os
+import asyncio
 
 from datetime import datetime
 
@@ -30,6 +31,38 @@ def read_cookies(cookie_file_path):
     conn.close()
     return cookie_dict
 
+
+def write_cookie(id):
+    conn = sqlite3.connect('./HOYO_ToolBox.db')  
+    cursor = conn.cursor()
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS accounts (
+        uid INTEGER PRIMARY KEY,
+        nick TEXT,
+        game TEXT,
+        level INTEGER,
+        id INTEGER,
+        name TEXT
+    )
+    ''')
+    functions = API_function()
+    user, accounts = asyncio.run(functions.get_accounts())
+
+    cursor.execute('SELECT * FROM accounts')
+    cookie_account_list = cursor.fetchall()
+    cookie_accounts = []
+    for cookie_account in cookie_account_list:
+        cookie_accounts.append(cookie_account[0])
+
+    for account in accounts:
+        print(account, cookie_accounts)
+        if account['uid'] not in cookie_accounts:
+            cursor.execute(f"INSERT INTO accounts (uid, nick, game, level, id, name) VALUES (?, ?, ?, ?, ?, ?)", (account['uid'], account['nick'], account['game'], account['level'], user['id'], user['name']))
+
+    conn.commit()
+    conn.close()
+
 class CookieNotFound(Exception):
     pass
 
@@ -45,13 +78,34 @@ class API_function():
         self.diary_path = diary_path
 
 
-    #原神
-    async def get_genshin_accounts(self):
-        accounts = await self.client.get_game_accounts()
-        print(accounts)
-        account_list = [str(account.uid) for account in accounts if account.game.name == "GENSHIN"]
 
-        return account_list
+
+
+    #通用
+
+    async def get_accounts(self):
+        user = await self.client.get_hoyolab_user(hoyolab_id=191405913)
+
+        accounts = await self.client.get_game_accounts()
+        account_data = [
+            {
+                "uid": str(account.uid),
+                "nick": str(account.nickname),
+                "game": str(account.game.name),
+                "level": int(account.level)
+            } 
+            for account in accounts
+            ]
+        
+        user_data = {
+            "id":user.hoyolab_id,
+            "name":user.nickname
+            }
+
+        return user_data, account_data
+
+
+    #原神
 
     async def get_genshin_diary(self, uid):
         diary = await self.client.get_genshin_diary(uid)
@@ -78,12 +132,7 @@ class API_function():
 
 
 
-    ##崩鐵
-    async def get_starrail_accounts(self):
-        accounts = await self.client.get_game_accounts()
-        account_list = [str(account.uid) for account in accounts if account.game.name == "STARRAIL"]
-
-        return account_list
+    #崩鐵
 
     async def get_starrail_diary(self, uid):
         diary = await self.client.get_starrail_diary(uid)
@@ -107,12 +156,7 @@ class API_function():
         
         return notes_data
 
-    ##崩鐵
-    async def get_zzz_accounts(self):
-        accounts = await self.client.get_game_accounts()
-        account_list = [str(account.uid) for account in accounts if account.game.name == "ZZZ"]
-
-        return account_list
+    ##絕區零
 
     async def get_zzz_diary(self, uid):
         diary = await self.client.get_zzz_diary(uid)
