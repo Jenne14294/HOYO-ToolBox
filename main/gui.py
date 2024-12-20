@@ -881,7 +881,11 @@ class MainWindow(QWidget):
         self.web_view.setUrl(QUrl(url))
     
     def get_hoyolab_accounts(self):
-        account_options = GenshinAPI.get_hoyolab_account()        
+        try:
+            account_options = GenshinAPI.get_hoyolab_account()  
+        except:
+            account_options = []
+
         return account_options
        
 
@@ -1303,10 +1307,12 @@ class MainWindow(QWidget):
     def show_caculator(self):
         self.btn_diary.hide()
 
-    def show_game_options(self, UID=None):
+    def show_game_options(self):
         options = []
-        accountID = self.account_combo.currentText() if UID == None else UID
         selected_game = self.button_group.checkedButton().text()
+
+        gameText = "GenshinImpact" if selected_game == "原神" else "Honkai_StarRail" if selected_game == "崩鐵" else "ZenlessZoneZero"
+        accountID = self.account_combo.currentText() if self.account_combo.currentText() != "" else [file for file in os.listdir(f"{data_path}/user_data") if gameText in file][0].split("_")[-1][:-5] if len(os.listdir(f"{data_path}/user_data")) >= 1 else ""
 
         # 根據遊戲選擇設定選項和資料檔案
         if selected_game == "原神":
@@ -1426,11 +1432,15 @@ class MainWindow(QWidget):
         # 創建線程實例並連接信號
         self.thread = FetchDataThread(selected_game)
         self.thread.update_signal.connect(self.update_gacha_info)  # 連接信號到更新方法
+        self.thread.finished_signal.connect(self.on_thread_finished)
         self.thread.start()  # 啟動線程
 
     def update_gacha_info(self, text):
         # 更新 GUI 上的 gacha_info_list
         self.gacha_info_list[0].setText(text)
+
+    def on_thread_finished(self):
+        self.show_game_options()
 
     def external_input(self, input_name):
         if input_name == "手動輸入":
@@ -1723,6 +1733,7 @@ class InputDialog(QDialog):
       
 class FetchDataThread(QThread):
     update_signal = pyqtSignal(str)  # 定義信號，用來傳遞字符串
+    finished_signal = pyqtSignal()
 
     def __init__(self, selected_game):
         super().__init__()
@@ -1745,6 +1756,7 @@ class FetchDataThread(QThread):
                 functions.get_ZZZdata_by_api()
 
             self.update_signal.emit("抽卡紀錄已讀取")
+            self.finished_signal.emit()
             
         except Exception as e:
             self.update_signal.emit("讀取失敗，請先在遊戲裡打開抽卡歷史紀錄")

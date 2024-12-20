@@ -46,6 +46,8 @@ def write_cookie(id):
         name TEXT
     )
     ''')
+    conn.commit()
+    
     functions = API_function()
     user, accounts = asyncio.run(functions.get_accounts(id))
 
