@@ -7,6 +7,7 @@ import functions
 import sys
 import isodate
 import subprocess
+import time
 
 from PyQt5.QtWidgets import QApplication, QVBoxLayout, QHBoxLayout, QRadioButton, QButtonGroup, QLabel, QComboBox, QWidget, QFrame, QPushButton, QScrollArea, QFileDialog, QMessageBox, QDialog, QTextEdit, QStackedWidget, QProgressBar
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage
@@ -169,6 +170,19 @@ class MainWindow(QWidget):
         left_layout.addWidget(self.account_label)
         left_layout.addWidget(self.account_combo)
 
+        # 添加hoyolab帳號選單
+        self.hoyolab_account_combo = QComboBox()
+        self.hoyolab_account_label = QLabel("選擇Hoyolab帳號：")
+
+        hoyolab_accounts = self.get_hoyolab_accounts()
+        for account_id, account_name in hoyolab_accounts:
+            self.hoyolab_account_combo.addItem(account_name, account_id)
+
+        self.hoyolab_account_combo.setCurrentIndex(0)  # 預設選擇 "帳號1"
+        self.hoyolab_account_combo.currentTextChanged.connect(self.update_hoyolab_account_display)
+        self.hoyolab_account_combo.hide()
+        self.hoyolab_account_label.hide()
+
         # 添加遊戲帳號選單
         self.game_account_combo = QComboBox()
         self.game_account_label = QLabel("選擇遊戲帳號：")
@@ -178,8 +192,13 @@ class MainWindow(QWidget):
         self.game_account_combo.currentTextChanged.connect(self.update_game_account_display)
         self.game_account_combo.hide()
         self.game_account_label.hide()
+
+
         left_layout.addWidget(self.game_account_label)
         left_layout.addWidget(self.game_account_combo)
+
+        left_layout.addWidget(self.hoyolab_account_label)
+        left_layout.addWidget(self.hoyolab_account_combo)
 
         # 按鈕 - 獲取月曆
         self.login_website = QPushButton("網頁登入")
@@ -722,6 +741,22 @@ class MainWindow(QWidget):
 
         self.game_account_combo.show()
         self.game_account_label.show()
+        
+
+
+        self.hoyolab_account_combo.clear()
+        hoyolab_accounts = self.get_hoyolab_accounts()
+
+        for account_id, account_name in hoyolab_accounts:
+            self.hoyolab_account_combo.addItem(account_name, account_id)
+
+        self.hoyolab_account_combo.setCurrentIndex(0)
+
+        self.hoyolab_account_combo.show()
+        self.hoyolab_account_label.show()
+        
+
+
         self.login_website.show()
         
         for i in range(self.bottom_layout.count() - 1):
@@ -741,6 +776,8 @@ class MainWindow(QWidget):
 
         self.game_account_combo.hide()
         self.game_account_label.hide()
+        self.hoyolab_account_combo.hide()
+        self.hoyolab_account_label.hide()
         self.btn_diary.hide()
         self.login_website.hide()
         
@@ -757,27 +794,27 @@ class MainWindow(QWidget):
         self.outer_scroll_area.setFixedSize(1675, 600)
         self.gacha_info.setFixedSize(1675, 200)
 
-    def on_game_function_click(self):
-        self.now_function = "遊戲功能"
+    # def on_game_function_click(self):
+    #     self.now_function = "遊戲功能"
 
-        self.outer_scroll_area.setFixedSize(0, 0)
-        self.gacha_info.setFixedSize(0, 0)
-        self.stacked_widget.setFixedSize(0, 0)
-        self.web_bottom_frame.setVisible(False)
-        self.web_bottom_frame.setFixedSize(0, 0)
-        self.account_combo.hide()
-        self.account_label.hide()
-        self.btn_diary.hide()
-        self.login_website.hide()
-        self.game_account_combo.hide()
-        self.game_account_label.hide()
+    #     self.outer_scroll_area.setFixedSize(0, 0)
+    #     self.gacha_info.setFixedSize(0, 0)
+    #     self.stacked_widget.setFixedSize(0, 0)
+    #     self.web_bottom_frame.setVisible(False)
+    #     self.web_bottom_frame.setFixedSize(0, 0)
+    #     self.account_combo.hide()
+    #     self.account_label.hide()
+    #     self.btn_diary.hide()
+    #     self.login_website.hide()
+    #     self.game_account_combo.hide()
+    #     self.game_account_label.hide()
 
-        for i in range(self.bottom_layout.count() - 1):
-            widget = self.bottom_layout.itemAt(i).widget()
-            if widget:
-                widget.hide()
+    #     for i in range(self.bottom_layout.count() - 1):
+    #         widget = self.bottom_layout.itemAt(i).widget()
+    #         if widget:
+    #             widget.hide()
 
-        # self.game_container.setFixedSize(1675,800)
+    #     # self.game_container.setFixedSize(1675,800)
 
     def show_web_view(self):
         """顯示 QWebEngineView 頁面"""
@@ -842,52 +879,11 @@ class MainWindow(QWidget):
         
         url = game_urls.get(selected_game)
         self.web_view.setUrl(QUrl(url))
-
-    def get_accounts(self):
-        account_options = []
-        folder_path = f"{data_path}/user_data"
-        selected_game = self.button_group.checkedButton().text()
-
-        if not os.path.exists(folder_path):
-            return account_options
-
-        for file in os.listdir(folder_path):
-            start_index = file.find("_", 10)
-            end_index = file.find(".json")
-
-            if selected_game == "原神" and file.startswith("GenshinImpact"):
-                account_options.append(file[start_index + 1:end_index])
-
-            elif selected_game == "崩鐵" and file.startswith("Honkai_StarRail"):
-                account_options.append(file[start_index + 1:end_index])
-
-            elif selected_game == "絕區零" and file.startswith("ZenlessZoneZero"):
-                account_options.append(file[start_index + 1:end_index])
-
-        return account_options
     
-    def get_game_accounts(self):
-        selected_game = self.button_group.checkedButton().text()
-        account_options = []
-
-        try:
-
-            API_function = GenshinAPI.API_function()
-
-            if selected_game == "原神":
-                account_options = asyncio.run(API_function.get_genshin_accounts())
-
-            if selected_game == "崩鐵":
-                account_options = asyncio.run(API_function.get_starrail_accounts())
-
-            if selected_game == "絕區零":
-                account_options = asyncio.run(API_function.get_zzz_accounts())
-
-        except:
-            pass
-            
+    def get_hoyolab_accounts(self):
+        account_options = GenshinAPI.get_hoyolab_account()        
         return account_options
-        
+       
 
     # 更新右側帳號顯示
     def update_account_display(self, account_name):
@@ -898,11 +894,15 @@ class MainWindow(QWidget):
             self.show_game_options()
 
     def update_game_account_display(self, account_name):
-        if self.web_button_function == "即時便籤":
-            self.show_notes()
+        pass
 
-        elif self.web_button_function == "收入月曆":
-            self.show_now_income_calander()
+    def update_hoyolab_account_display(self):
+        selected_index = self.hoyolab_account_combo.currentIndex()
+        self.hoyolab_account_combo.setCurrentIndex(selected_index)
+
+        game_accounts = self.get_game_accounts()      
+        self.game_account_combo.clear()
+        self.game_account_combo.addItems(game_accounts)
         
     def change_game(self):    
         game = self.button_group.checkedButton().text()
@@ -948,9 +948,47 @@ class MainWindow(QWidget):
         #     except:
         #         pass
 
+    def get_accounts(self):
+        account_options = []
+        folder_path = f"{data_path}/user_data"
+        selected_game = self.button_group.checkedButton().text()
+
+        if not os.path.exists(folder_path):
+            return account_options
+
+        for file in os.listdir(folder_path):
+            start_index = file.find("_", 10)
+            end_index = file.find(".json")
+
+            if selected_game == "原神" and file.startswith("GenshinImpact"):
+                account_options.append(file[start_index + 1:end_index])
+
+            elif selected_game == "崩鐵" and file.startswith("Honkai_StarRail"):
+                account_options.append(file[start_index + 1:end_index])
+
+            elif selected_game == "絕區零" and file.startswith("ZenlessZoneZero"):
+                account_options.append(file[start_index + 1:end_index])
+
+        return account_options
+    
+    def get_game_accounts(self):
+        selected_id = self.hoyolab_account_combo.currentData()
+        selected_game = self.button_group.checkedButton().text()
+        
+        account_options = []
+        API_function = GenshinAPI.API_function()
+        gameText = "GENSHIN" if selected_game == "原神" else "STARRAIL" if selected_game == "崩鐵" else "ZZZ"
+
+        try:
+            account_options = API_function.get_game_accounts(selected_id, gameText)
+
+        except:
+            pass
+            
+        return account_options
+
     def change_language(self, language_name):
         pass
-
 
     def show_notes(self):
         self.web_button_function = "即時便籤"
@@ -999,78 +1037,82 @@ class MainWindow(QWidget):
         self.notes_data[0].setText(title)
         self.notes_data[0].setAlignment(Qt.AlignCenter)
 
-        if selected_game == "原神":
-            resin_time = isodate.parse_duration(data['remaining_resin_recovery_time'])
-            resin_recover_time = (current_time + resin_time)
-            resin_formatted_time = "體力已滿！" if resin_time == timedelta(0) else resin_recover_time.strftime("%H:%M:%S")
-            resin_day = resin_recover_time.day - current_time.day
-            resin_day_label = "" if resin_time == timedelta(0) else "今天" if resin_day == 0 else "明天" if resin_day == 1 else "後天" if resin_day == 2 else f"{resin_day} 天後"
+        try:
+            if selected_game == "原神":
+                resin_time = isodate.parse_duration(data['remaining_resin_recovery_time'])
+                resin_recover_time = (current_time + resin_time)
+                resin_formatted_time = "體力已滿！" if resin_time == timedelta(0) else resin_recover_time.strftime("%H:%M:%S")
+                resin_day = resin_recover_time.day - current_time.day
+                resin_day_label = "" if resin_time == timedelta(0) else "今天" if resin_day == 0 else "明天" if resin_day == 1 else "後天" if resin_day == 2 else f"{resin_day} 天後"
 
 
-            currency_time = isodate.parse_duration(data['remaining_realm_currency_recovery_time'])
+                currency_time = isodate.parse_duration(data['remaining_realm_currency_recovery_time'])
 
-            currency_recover_time = "" if currency_time == timedelta(0) else (current_time + currency_time)
-            currency_formatted_time = "寶錢已滿！" if currency_time == timedelta(0) else currency_recover_time.strftime("%H:%M:%S")
-            currency_day = "" if currency_time == timedelta(0) else currency_recover_time.day - current_time.day
-            currency_day_label = "" if currency_time == timedelta(0) else "今天" if currency_day == 0 else "明天" if currency_day == 1 else "後天" if currency_day == 2 else f"{currency_day} 天後"
+                currency_recover_time = "" if currency_time == timedelta(0) else (current_time + currency_time)
+                currency_formatted_time = "寶錢已滿！" if currency_time == timedelta(0) else currency_recover_time.strftime("%H:%M:%S")
+                currency_day = "" if currency_time == timedelta(0) else currency_recover_time.day - current_time.day
+                currency_day_label = "" if currency_time == timedelta(0) else "今天" if currency_day == 0 else "明天" if currency_day == 1 else "後天" if currency_day == 2 else f"{currency_day} 天後"
 
-            claim_commission = "已領取！" if data['claimed_commission_reward'] else "未領取！"
-            
-            transformer_time = None if data['remaining_transformer_recovery_time'] == None else isodate.parse_duration(data['remaining_transformer_recovery_time'])
-            transformer_recover_time = "" if transformer_time == timedelta(0) else "" if transformer_time == None else  (current_time + transformer_time)
-            transformer_formatted_time = "冷卻結束！" if transformer_time == timedelta(0) else "" if transformer_time == None else transformer_recover_time.strftime("%H:%M:%S")
-            transformer_day = "" if not isinstance(transformer_recover_time, datetime) else transformer_recover_time.day - current_time.day
-            transformer_day_label = "" if transformer_day == "" else "今天" if transformer_day == 0 else "明天" if transformer_day == 1 else "後天" if transformer_day == 2 else f"{transformer_day} 天後"
+                claim_commission = "已領取！" if data['claimed_commission_reward'] else "未領取！"
+                
+                transformer_time = None if data['remaining_transformer_recovery_time'] == None else isodate.parse_duration(data['remaining_transformer_recovery_time'])
+                transformer_recover_time = "" if transformer_time == timedelta(0) else "" if transformer_time == None else  (current_time + transformer_time)
+                transformer_formatted_time = "冷卻結束！" if transformer_time == timedelta(0) else "" if transformer_time == None else transformer_recover_time.strftime("%H:%M:%S")
+                transformer_day = "" if not isinstance(transformer_recover_time, datetime) else transformer_recover_time.day - current_time.day
+                transformer_day_label = "" if transformer_day == "" else "今天" if transformer_day == 0 else "明天" if transformer_day == 1 else "後天" if transformer_day == 2 else f"{transformer_day} 天後"
 
-            content = f"原粹樹脂：{data['current_resin']} / {data['max_resin']} | 完全恢復時間：{resin_day_label} {resin_formatted_time}\n\n洞天寶錢：{data['current_realm_currency']} / {data['max_realm_currency']} | 到達上限時間：{currency_day_label} {currency_formatted_time}\n\n每日委託：{data['completed_commissions']} / {data['max_commissions']} | 委託獎勵：{claim_commission}\n\n周本減免：{data['remaining_resin_discounts']} / {data['max_resin_discounts']}\n\n質變儀冷卻：{transformer_day_label} {transformer_formatted_time}\n委託派遣：\n\n"
+                content = f"原粹樹脂：{data['current_resin']} / {data['max_resin']} | 完全恢復時間：{resin_day_label} {resin_formatted_time}\n\n洞天寶錢：{data['current_realm_currency']} / {data['max_realm_currency']} | 到達上限時間：{currency_day_label} {currency_formatted_time}\n\n每日委託：{data['completed_commissions']} / {data['max_commissions']} | 委託獎勵：{claim_commission}\n\n周本減免：{data['remaining_resin_discounts']} / {data['max_resin_discounts']}\n\n質變儀冷卻：{transformer_day_label} {transformer_formatted_time}\n委託派遣：\n\n"
 
-            for info in data['expeditions']:
-                status = "派遣中" if info['status'] == "Ongoing" else "已完成！"
-                remain_time = current_time + isodate.parse_duration(info['remaining_time'])
-                formatted_remain_time = remain_time.strftime("%H:%M:%S")
-                remain_time_label = f"- 完成時間：{formatted_remain_time}" if info['status'] == "Ongoing" else ""
-                content += f"   {status} {remain_time_label}\n\n"
+                for info in data['expeditions']:
+                    status = "派遣中" if info['status'] == "Ongoing" else "已完成！"
+                    remain_time = current_time + isodate.parse_duration(info['remaining_time'])
+                    formatted_remain_time = remain_time.strftime("%H:%M:%S")
+                    remain_time_label = f"- 完成時間：{formatted_remain_time}" if info['status'] == "Ongoing" else ""
+                    content += f"   {status} {remain_time_label}\n\n"
 
-        if selected_game == "崩鐵":
-            resin_time = isodate.parse_duration(data['stamina_recover_time'])
-            resin_recover_time = (current_time + resin_time)
-            resin_formatted_time = "體力已滿！" if resin_time == timedelta(0) else resin_recover_time.strftime("%H:%M:%S")
-            resin_day = resin_recover_time.day - current_time.day
-            resin_day_label = "" if resin_time == timedelta(0) else "今天" if resin_day == 0 else "明天" if resin_day == 1 else "後天" if resin_day == 2 else f"{resin_day} 天後"
+            if selected_game == "崩鐵":
+                resin_time = isodate.parse_duration(data['stamina_recover_time'])
+                resin_recover_time = (current_time + resin_time)
+                resin_formatted_time = "體力已滿！" if resin_time == timedelta(0) else resin_recover_time.strftime("%H:%M:%S")
+                resin_day = resin_recover_time.day - current_time.day
+                resin_day_label = "" if resin_time == timedelta(0) else "今天" if resin_day == 0 else "明天" if resin_day == 1 else "後天" if resin_day == 2 else f"{resin_day} 天後"
 
-            claim_commission = "已領取！" if data['current_train_score'] == data['max_train_score'] else "未領取！"
-            
+                claim_commission = "已領取！" if data['current_train_score'] == data['max_train_score'] else "未領取！"
+                
 
-            content = f"開拓力：{data['current_stamina']} / {data['max_stamina']} | 完全恢復時間：{resin_day_label} {resin_formatted_time} | 後備開拓力：{data['current_reserve_stamina']} / 2400 \n\n每日委託：{data['current_train_score']} / {data['max_train_score']}\n\n周本減免：{data['remaining_weekly_discounts']} / {data['max_weekly_discounts']}\n\n委託派遣：\n\n"
+                content = f"開拓力：{data['current_stamina']} / {data['max_stamina']} | 完全恢復時間：{resin_day_label} {resin_formatted_time} | 後備開拓力：{data['current_reserve_stamina']} / 2400 \n\n每日委託：{data['current_train_score']} / {data['max_train_score']}\n\n周本減免：{data['remaining_weekly_discounts']} / {data['max_weekly_discounts']}\n\n委託派遣：\n\n"
 
-            for info in data['expeditions']:
-                status = "派遣中" if info['status'] == "Ongoing" else "已完成！"
-                remain_time = current_time + isodate.parse_duration(info['remaining_time'])
-                formatted_remain_time = remain_time.strftime("%H:%M:%S")
-                remain_time_label = f"- 完成時間：{formatted_remain_time}" if info['status'] == "Ongoing" else ""
-                content += f"   {status} {remain_time_label}\n\n"
+                for info in data['expeditions']:
+                    status = "派遣中" if info['status'] == "Ongoing" else "已完成！"
+                    remain_time = current_time + isodate.parse_duration(info['remaining_time'])
+                    formatted_remain_time = remain_time.strftime("%H:%M:%S")
+                    remain_time_label = f"- 完成時間：{formatted_remain_time}" if info['status'] == "Ongoing" else ""
+                    content += f"   {status} {remain_time_label}\n\n"
 
-            content += f"模擬宇宙分數：{data['current_rogue_score']} / {data['max_rogue_score']}"
-            
-            if data['have_bonus_synchronicity_points']:
-                content += f"\n\n本週擬合值：{data['current_bonus_synchronicity_points']} / {data['max_bonus_synchronicity_points']}\n\n"
+                content += f"模擬宇宙分數：{data['current_rogue_score']} / {data['max_rogue_score']}"
+                
+                if data['have_bonus_synchronicity_points']:
+                    content += f"\n\n本週擬合值：{data['current_bonus_synchronicity_points']} / {data['max_bonus_synchronicity_points']}\n\n"
 
-        if selected_game == "絕區零":
-            resin_time = timedelta(seconds=data['battery_charge']['seconds_till_full'])
-            resin_recover_time = (current_time + resin_time)
-            resin_formatted_time = "體力已滿！" if resin_time == timedelta(0) else resin_recover_time.strftime("%H:%M:%S")
-            resin_day = resin_recover_time.day - current_time.day
-            resin_day_label = "" if resin_time == timedelta(0) else "今天" if resin_day == 0 else "明天" if resin_day == 1 else "後天" if resin_day == 2 else f"{resin_day} 天後"
+            if selected_game == "絕區零":
+                resin_time = timedelta(seconds=data['battery_charge']['seconds_till_full'])
+                resin_recover_time = (current_time + resin_time)
+                resin_formatted_time = "體力已滿！" if resin_time == timedelta(0) else resin_recover_time.strftime("%H:%M:%S")
+                resin_day = resin_recover_time.day - current_time.day
+                resin_day_label = "" if resin_time == timedelta(0) else "今天" if resin_day == 0 else "明天" if resin_day == 1 else "後天" if resin_day == 2 else f"{resin_day} 天後"
 
-            scratch_card = "已完成" if data['scratch_card_completed'] else "未完成"
-            video_store_state = "經營中" if data['video_store_state'] == "SaleStateDoing" else "未經營"
+                scratch_card = "已完成" if data['scratch_card_completed'] else "未完成"
+                video_store_state = "經營中" if data['video_store_state'] == "SaleStateDoing" else "未經營"
 
-            content = f"電量：{data['battery_charge']['current']} / {data['battery_charge']['max']} | 完全恢復時間：{resin_day_label} {resin_formatted_time}\n\n每日委託：{data['engagement']['current']} / {data['engagement']['max']}\n\n刮刮樂：{scratch_card} | 錄影帶店經營：{video_store_state}\n\n零號空洞：\n\n  調查點數 - {data['hollow_zero']['investigation_point']['num']} / {data['hollow_zero']['investigation_point']['total']}"
+                content = f"電量：{data['battery_charge']['current']} / {data['battery_charge']['max']} | 完全恢復時間：{resin_day_label} {resin_formatted_time}\n\n每日委託：{data['engagement']['current']} / {data['engagement']['max']}\n\n刮刮樂：{scratch_card} | 錄影帶店經營：{video_store_state}\n\n零號空洞：\n\n  調查點數 - {data['hollow_zero']['investigation_point']['num']} / {data['hollow_zero']['investigation_point']['total']}"
+
+        except:
+            content = ""
+
 
         self.notes_data[1].setText(content)
         self.notes_data[1].setAlignment(Qt.AlignCenter)
 
-    
     def show_now_income_calander(self):
         self.web_button_function = "收入月曆"
         self.btn_diary.show()
@@ -1173,7 +1215,6 @@ class MainWindow(QWidget):
             # 創建 QChartView 並設置為圖表顯示
             self.month_data[3].setChart(chart)
 
-        
     def show_other_income_calander(self, buttonIndex):
         if buttonIndex == -1:
             self.month_data[4].setText("")
@@ -1258,12 +1299,9 @@ class MainWindow(QWidget):
 
             # 創建 QChartView 並設置為圖表顯示
             self.month_data[6].setChart(chart)
-
         
     def show_caculator(self):
         self.btn_diary.hide()
-
-
 
     def show_game_options(self, UID=None):
         options = []
@@ -1731,7 +1769,6 @@ class CustomWebEnginePage(QWebEnginePage):
 
         popup_view.show()
         return popup_view.page()
-
     
 class WebWindow(QWidget):
     def __init__(self):
@@ -1757,9 +1794,9 @@ class WebWindow(QWidget):
         self.setLayout(layout)
 
     def on_complete_button_clicked(self):
+        time.sleep(1)
         cookies = GenshinAPI.read_cookies(f"{data_path}/QtWebEngine/Default/Cookies")
-        id = cookies['account_id_v2']
-        GenshinAPI.write_cookie(id)
+        GenshinAPI.write_cookie(cookies['account_id_v2'])
         self.close()
 
 

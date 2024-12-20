@@ -47,21 +47,41 @@ def write_cookie(id):
     )
     ''')
     functions = API_function()
-    user, accounts = asyncio.run(functions.get_accounts())
+    user, accounts = asyncio.run(functions.get_accounts(id))
 
     cursor.execute('SELECT * FROM accounts')
     cookie_account_list = cursor.fetchall()
     cookie_accounts = []
+
     for cookie_account in cookie_account_list:
-        cookie_accounts.append(cookie_account[0])
+        cookie_accounts.append(str(cookie_account[0]))
 
     for account in accounts:
-        print(account, cookie_accounts)
         if account['uid'] not in cookie_accounts:
             cursor.execute(f"INSERT INTO accounts (uid, nick, game, level, id, name) VALUES (?, ?, ?, ?, ?, ?)", (account['uid'], account['nick'], account['game'], account['level'], user['id'], user['name']))
 
     conn.commit()
     conn.close()
+
+def get_hoyolab_account():
+    # 建立與資料庫的連接
+    conn = sqlite3.connect('./HOYO_ToolBox.db')  # 替換成你的資料庫檔案路徑
+    cursor = conn.cursor()
+
+    # 執行查詢以獲取不重複的 id
+    cursor.execute("SELECT DISTINCT id, name FROM accounts")
+    unique_ids = cursor.fetchall()
+    accounts = []
+
+    for account in unique_ids:
+        accounts.append((str(account[0]), account[1]))  # 每個 uid 是一個 tuple，所以需要用 uid[0] 提取值
+        
+    # 關閉連接
+    conn.close()
+    return accounts
+
+
+
 
 class CookieNotFound(Exception):
     pass
@@ -83,8 +103,8 @@ class API_function():
 
     #通用
 
-    async def get_accounts(self):
-        user = await self.client.get_hoyolab_user(hoyolab_id=191405913)
+    async def get_accounts(self, id):
+        user = await self.client.get_hoyolab_user(hoyolab_id=id)
 
         accounts = await self.client.get_game_accounts()
         account_data = [
@@ -103,6 +123,23 @@ class API_function():
             }
 
         return user_data, account_data
+    
+    def get_game_accounts(self, id, game):
+        # 建立與資料庫的連接
+        conn = sqlite3.connect('./HOYO_ToolBox.db')  # 替換成你的資料庫檔案路徑
+        cursor = conn.cursor()
+
+        # 執行查詢以獲取不重複的 id
+        cursor.execute("SELECT uid FROM accounts where id = ? and game = ?", (id, game))
+        unique_ids = cursor.fetchall()
+        accounts = []
+
+        for account in unique_ids:
+            accounts.append(str(account[0]))  # 每個 uid 是一個 tuple，所以需要用 uid[0] 提取值
+            
+        # 關閉連接
+        conn.close()
+        return accounts
 
 
     #原神
