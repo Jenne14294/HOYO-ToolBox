@@ -1312,7 +1312,7 @@ class MainWindow(QWidget):
         selected_game = self.button_group.checkedButton().text()
 
         gameText = "GenshinImpact" if selected_game == "原神" else "Honkai_StarRail" if selected_game == "崩鐵" else "ZenlessZoneZero"
-        accountID = self.account_combo.currentText() if self.account_combo.currentText() != "" else [file for file in os.listdir(f"{data_path}/user_data") if gameText in file][0].split("_")[-1][:-5] if len(os.listdir(f"{data_path}/user_data")) >= 1 else ""
+        accountID = self.account_combo.currentText() if self.account_combo.currentText() != "" else [file for file in os.listdir(f"{data_path}/user_data") if gameText in file][0].split("_")[-1][:-5] if len([file for file in os.listdir(f"{data_path}/user_data") if gameText in file]) >= 1 else ""
 
         # 根據遊戲選擇設定選項和資料檔案
         if selected_game == "原神":
