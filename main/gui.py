@@ -980,10 +980,9 @@ class MainWindow(QWidget):
         selected_game = self.button_group.checkedButton().text()
         
         account_options = []
-        API_function = GenshinAPI.API_function()
-        gameText = "GENSHIN" if selected_game == "原神" else "STARRAIL" if selected_game == "崩鐵" else "ZZZ"
-
         try:
+            API_function = GenshinAPI.API_function()
+            gameText = "GENSHIN" if selected_game == "原神" else "STARRAIL" if selected_game == "崩鐵" else "ZZZ"
             account_options = API_function.get_game_accounts(selected_id, gameText)
 
         except:
