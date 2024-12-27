@@ -35,13 +35,16 @@ if not os.path.exists("./config.ini"):
     config.add_section('General')
     config.set('General', 'Author', 'Jenne14294')
     config.set('General', 'AppName', 'HOYO ToolBox')
-    config.set('General', 'version', '1.13')
+    config.set('General', 'version', '1.15')
 
     config.add_section('Settings')
-    config.set('Settings', 'Language', 'en-US')
+    config.set('Settings', 'Language', 'zh-TW')
 
     with open('config.ini', 'w') as configfile:
         config.write(configfile)
+
+config.read('config.ini')
+version = config['General']['version']
 
 game = "原神"
 
@@ -253,6 +256,10 @@ class MainWindow(QWidget):
         self.btn_update.setIcon(QIcon("./assets/icons/update.png"))
         self.btn_update.clicked.connect(check_version)  # 註冊事件
         self.bottom_layout.addWidget(self.btn_update)
+
+        self.version_text = QLabel(f"v {version}")
+        self.version_text.setStyleSheet("font-size: 20px;")
+        self.bottom_layout.addWidget(self.version_text)
 
         # 將底部功能區塊設置為左邊的底部區域
         left_layout.addLayout(self.bottom_layout)

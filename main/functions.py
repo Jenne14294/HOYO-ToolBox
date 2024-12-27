@@ -12,7 +12,9 @@ from datetime import datetime
 
 local_folder_path = os.environ.get("LOCALAPPDATA")
 data_path = os.path.join(local_folder_path, "HoYo ToolBox") # pyright: ignore[reportCallIssue, reportArgumentType]
-exception = 123
+
+class HistoryURLNotFound(Exception):
+    pass
 
 def fetch_data_by_api(command, path, categories, gacha_size, game):
     result = subprocess.run(["powershell", "-Command", "Get-Clipboard", command], capture_output=True, text=True).stdout.split("\n")
@@ -20,7 +22,7 @@ def fetch_data_by_api(command, path, categories, gacha_size, game):
     UID = ""
 
     if not result.startswith("https"):
-        exception.replace("Fetch failed!")
+        raise HistoryURLNotFound
 
     if game == "原神":
         result += "hk4e_global&size=20&gacha_type=301&end_id="
