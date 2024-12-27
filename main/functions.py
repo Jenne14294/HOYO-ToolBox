@@ -173,32 +173,40 @@ def get_average(file_path, game, input_text):
     limit_char, limit_weapon = [], []
     fivestar_novice, fivestar_standard, fivestar_char, fivestar_weapon = [], [], [], []
 
+    novice_count, standard_count, character_count, weapon_count = [], [], [], []
+
     # 定義類別映射
     category_map = {
-        "novice": {"type": "100" if game == "原神" else "2" if game == "崩鐵" else "1", "list": novice, "fivestar_list": fivestar_novice},
-        "standard": {"type": "200" if game == "原神" else "1" if game == "崩鐵" else "1", "list": standard, "fivestar_list": fivestar_standard},
-        "characters": {"type": ["301", "400"] if game == "原神" else "11" if game == "崩鐵" else "2", "list": characters, "limit_list": limit_char, "fivestar_list": fivestar_char},
-        "weapons": {"type": "302" if game == "原神" else "12" if game == "崩鐵" else "3", "list": weapons, "limit_list": limit_weapon, "fivestar_list": fivestar_weapon}
+        "novice": {"type": "100" if game == "原神" else "2" if game == "崩鐵" else "1", "list": novice, "fivestar_list": fivestar_novice, "count":novice_count},
+        "standard": {"type": "200" if game == "原神" else "1" if game == "崩鐵" else "1", "list": standard, "fivestar_list": fivestar_standard, "count":standard_count},
+        "characters": {"type": ["301", "400"] if game == "原神" else "11" if game == "崩鐵" else "2", "list": characters, "limit_list": limit_char, "fivestar_list": fivestar_char, "count":character_count},
+        "weapons": {"type": "302" if game == "原神" else "12" if game == "崩鐵" else "3", "list": weapons, "limit_list": limit_weapon, "fivestar_list": fivestar_weapon, "count": weapon_count}
     }
 
     if game == "原神":
         collection, limit_coll, fivestar_coll = [], [], []
-        category_map["collection"] = {"type": "500", "list": collection, "limit_list": limit_coll, "fivestar_list": fivestar_coll}
+        collection_count = []
+        category_map["collection"] = {"type": "500", "list": collection, "limit_list": limit_coll, "fivestar_list": fivestar_coll, "count": collection_count}
 
     elif game == "絕區零":
         bangboo, fivestar_bangboo = [], []
-        category_map["bangboo"] = {"type": "5", "list": bangboo, "fivestar_list": fivestar_bangboo, "limit_list":[]}
+        bangboo_count = []
+        category_map["bangboo"] = {"type": "5", "list": bangboo, "fivestar_list": fivestar_bangboo, "limit_list":[], "count": bangboo_count}
 
     def process_item(item, category, standard_items):
         category["list"].append(item)
+        category["count"].append(item)
         if item["rank_type"] == "5":
+            category["count"] = []
             category["fivestar_list"].append(item)
             if item['name'] not in standard_items and item["gacha_type"] not in ["100", "200", "1", "2"]:
                 category["limit_list"].append(item)
 
     def process_item_zzz(item, category, standard_items):
         category["list"].append(item)
+        category["count"] += 1
         if item["rank_type"] == "4":
+            category["count"] = 0
             category["fivestar_list"].append(item)
             if item['name'] not in standard_items and item["gacha_type"] in ["1", "2", "3", "5"]:
                 category["limit_list"].append(item)
@@ -249,32 +257,52 @@ def get_average(file_path, game, input_text):
         average_character = round(len(characters) / len(fivestar_char), 2) if len(fivestar_char) > 0 else None
         average_weapon = round(len(weapons) / len(fivestar_weapon), 2) if len(fivestar_weapon) > 0 else None
         
+        true_character_count = len(character_count) - 1
+        true_character_count = true_character_count if true_character_count >= 0 else 0
+        
+        true_weapon_count = len(weapon_count) - 1
+        true_weapon_count = true_weapon_count if true_weapon_count >= 0 else 0
+
+        true_standard_count = len(standard_count) - 1
+        true_standard_count = true_standard_count if true_standard_count >= 0 else 0
+
+        true_novice_count = len(novice_count) - 1
+        true_novice_count = true_novice_count if true_novice_count >= 0 else 0
+
+
         char_guarantee_rate = f"{round(((2 * len(limit_char) - len(fivestar_char)) / len(limit_char)) * 100, 2)} %" if len(fivestar_char) > 0 else None
         char_guarantee_rate = None if not char_guarantee_rate else "0.0 %" if "-" in char_guarantee_rate else char_guarantee_rate
 
         weapon_guarantee_rate = f"{round(((2 * len(limit_weapon) - len(fivestar_weapon)) / len(limit_weapon)) * 100, 2)} %" if len(fivestar_weapon) > 0 else None
-        weapon_guarantee_rate = None if not weapon_guarantee_rate else "0.0 %" if "-" in weapon_guarantee_rate else weapon_guarantee_rate        
+        weapon_guarantee_rate = None if not weapon_guarantee_rate else "0.0 %" if "-" in weapon_guarantee_rate else weapon_guarantee_rate
 
-        status_text = f"限定池抽數：{len(characters)} | 限定角色數：{len(limit_char)} | 平均限定金：{average_limit_character} | 五星角色數：{len(fivestar_char)} | 平均五星金：{average_character} | 保底不歪率：{char_guarantee_rate}\n"
-        status_text += f"武器池抽數：{len(weapons)} | 限定武器數：{len(limit_weapon)} | 平均限定金：{average_limit_weapon} | 五星武器數：{len(fivestar_weapon)} | 平均五星金：{average_weapon} | 保底不歪率：{weapon_guarantee_rate}\n"
+        status_text = f"限定池({true_character_count} / 90) - 總抽數：{len(characters)} | 限定角色數：{len(limit_char)} | 平均限定金：{average_limit_character} | 五星角色數：{len(fivestar_char)} | 平均五星金：{average_character} | 保底不歪率：{char_guarantee_rate}\n"
+        status_text += f"武器池({true_weapon_count} / 80) - 總抽數：{len(weapons)} | 限定武器數：{len(limit_weapon)} | 平均限定金：{average_limit_weapon} | 五星武器數：{len(fivestar_weapon)} | 平均五星金：{average_weapon} | 保底不歪率：{weapon_guarantee_rate}\n"
 
         if game == "原神":
             average_limit_collection = round(len(collection) / len(limit_coll),2) if len(limit_coll) > 0 else None
             average_collection = round(len(collection) / len(fivestar_coll),2) if len(fivestar_coll) > 0 else None 
+            
+            true_collection_count = len(collection_count) - 1
+            true_collection_count = true_collection_count if true_collection_count >= 0 else 0
+
             coll_guarantee_rate = f"{round(((2 * (len(limit_coll) - len(fivestar_coll))) / len(limit_coll)), 2) * 100} %" if len(fivestar_coll) > 0 else None
             coll_guarantee_rate = None if not coll_guarantee_rate else "0.0 %" if "-" in coll_guarantee_rate else coll_guarantee_rate
 
-            status_text += f"集錄池抽數：{len(collection)} | 限定數量：{len(limit_coll)} | 平均限定金：{average_limit_collection} | 五星數量：{len(fivestar_coll)} | 平均五星金：{average_collection} | 保底不歪率：{coll_guarantee_rate}\n"
+            status_text += f"集錄池({true_collection_count} / 90) - 總抽數：{len(collection)} | 限定數量：{len(limit_coll)} | 平均限定金：{average_limit_collection} | 五星數量：{len(fivestar_coll)} | 平均五星金：{average_collection} | 保底不歪率：{coll_guarantee_rate}\n"
 
         if game == "絕區零":
             average_bangboo = round(len(bangboo) / len(fivestar_bangboo),2) if len(fivestar_bangboo) > 0 else None
 
-            status_text += f"邦布池抽數：{len(bangboo)} | 邦布五星數：{len(fivestar_bangboo)} | 平均五星數：{average_bangboo}\n"
+            true_bangboo_count = len(bangboo_count) - 1
+            true_bangboo_count = true_bangboo_count if true_bangboo_count >= 0 else 0
+
+            status_text += f"邦布池({true_bangboo_count} / 80) - 總抽數：{len(bangboo)} | 邦布五星數：{len(fivestar_bangboo)} | 平均五星數：{average_bangboo}\n"
 
         if game != "絕區零":
-            status_text += f"新手池抽數：{len(novice)} | 新手五星數：{len(fivestar_novice)} | 平均五星數：{average_novice}\n"
+            status_text += f"新手池({true_novice_count} / 50) - 總抽數：{len(novice)} | 新手五星數：{len(fivestar_novice)} | 平均五星數：{average_novice}\n"
 
-        status_text += f"常駐池抽數：{len(standard)}"
+        status_text += f"常駐池({true_standard_count} / 90) - 總抽數：{len(standard)}"
         result_text = status_text
         
     else:
