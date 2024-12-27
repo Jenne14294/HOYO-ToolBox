@@ -206,9 +206,9 @@ def get_average(file_path, game, input_text):
 
     def process_item_zzz(item, category, standard_items):
         category["list"].append(item)
-        category["count"] += 1
+        category["count"].append(item)
         if item["rank_type"] == "4":
-            category["count"] = 0
+            category["count"] = []
             category["fivestar_list"].append(item)
             if item['name'] not in standard_items and item["gacha_type"] in ["1", "2", "3", "5"]:
                 category["limit_list"].append(item)
