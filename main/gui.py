@@ -621,7 +621,7 @@ class MainWindow(QWidget):
 
         QLabel {
             color: white; /* 白色字體 */
-            font-size: 25px; /* 字體大小 */
+            font-size: 20px; /* 字體大小 */
         }
 
         QPushButton {
