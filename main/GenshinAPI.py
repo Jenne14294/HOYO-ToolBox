@@ -5,6 +5,7 @@ import os
 import asyncio
 
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 
 local_folder_path = os.environ.get("LOCALAPPDATA")
@@ -147,15 +148,18 @@ class API_function():
     #原神
 
     async def get_genshin_diary(self, uid):
-        diary = await self.client.get_genshin_diary(uid)
-        diary_data = json.loads(diary.model_dump_json())
-        uid = diary_data["uid"]
-        month = diary_data["month"]
-        current_year = datetime.now().year
-        self.diary_path = os.path.join(self.diary_path, f"GenshinImpact_{uid}_{month}_{current_year}.json")
+        now_info = datetime.now()
+        last_info = now_info - relativedelta(months=1)
+        last_two_info = now_info - relativedelta(months=2)
 
-        with open(self.diary_path, "w", encoding="utf8") as file:
-            json.dump(diary_data, file, indent=4, ensure_ascii=False)
+        for info in [now_info, last_info, last_two_info]:
+            diary = await self.client.get_genshin_diary(uid, month=info.month)
+            diary_data = json.loads(diary.model_dump_json())
+            uid = diary_data["uid"]
+            diary_path = os.path.join(self.diary_path, f"GenshinImpact_{uid}_{str(info.month).zfill(2)}_{info.year}.json")
+
+            with open(diary_path, "w", encoding="utf8") as file:
+                json.dump(diary_data, file, indent=4, ensure_ascii=False)
 
     async def get_genshin_notes(self, uid):
         info = await self.client.get_genshin_user(uid=uid)
@@ -174,14 +178,14 @@ class API_function():
     #崩鐵
 
     async def get_starrail_diary(self, uid):
+        now_info = datetime.now()
+
         diary = await self.client.get_starrail_diary(uid)
         diary_data = json.loads(diary.model_dump_json())
         uid = diary_data["uid"]
-        month = str(diary_data["month"])[4:]
-        current_year = datetime.now().year
-        self.diary_path = os.path.join(self.diary_path, f"HonkaiStarRail_{uid}_{month}_{current_year}.json")
+        diary_path = os.path.join(self.diary_path, f"HonkaiStarRail_{uid}_{str(now_info.month).zfill(2)}_{now_info.year}.json")
 
-        with open(self.diary_path, "w", encoding="utf8") as file:
+        with open(diary_path, "w", encoding="utf8") as file:
             json.dump(diary_data, file, indent=4, ensure_ascii=False)
 
     async def get_starrail_notes(self, uid):
@@ -198,18 +202,18 @@ class API_function():
     ##絕區零
 
     async def get_zzz_diary(self, uid):
-        diary = await self.client.get_zzz_diary(uid)
+        now_info = datetime.now()
+
+        diary = await self.client.get_zzz_diary(uid, month=now_info.month)
         diary_data = json.loads(diary.model_dump_json())
         uid = diary_data["uid"]
-        month = str(diary_data["data_month"])[4:]
         diary_data['nickname'] = diary_data['player']['nickname']
         diary_data['avatar_url'] = diary_data['player']['avatar_url']
         diary_data['server'] = diary_data['region']
 
-        current_year = datetime.now().year
-        self.diary_path = os.path.join(self.diary_path, f"ZenlessZoneZero_{uid}_{month}_{current_year}.json")
+        diary_path = os.path.join(self.diary_path, f"ZenlessZoneZero_{uid}_{str(now_info.month).zfill(2)}_{now_info.year}.json")
 
-        with open(self.diary_path, "w", encoding="utf8") as file:
+        with open(diary_path, "w", encoding="utf8") as file:
             json.dump(diary_data, file, indent=4, ensure_ascii=False)
 
     async def get_zzz_notes(self, uid):
