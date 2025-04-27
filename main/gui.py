@@ -84,7 +84,7 @@ class MainWindow(QWidget):
         
     def initUI(self):
         self.setWindowTitle("HOYO ToolBox")
-        self.setGeometry(0, 0, 720, 480)
+        self.setGeometry(300, 175, 1150, 600)
         self.now_function = "抽卡紀錄"
         self.web_button_function = ""
         self.update_signal = pyqtSignal(str)
@@ -288,7 +288,7 @@ class MainWindow(QWidget):
 
         # 創建外層滾動區域
         self.outer_scroll_area = QScrollArea()
-        self.outer_scroll_area.setFixedSize(1600, 200)  # 外部滾動區域大小
+        # self.outer_scroll_area.setFixedSize(1600, 200)  # 外部滾動區域大小
         self.outer_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)  # 僅在需要時顯示水平滾動條
         self.outer_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)  # 禁用垂直滾動條
 
@@ -314,7 +314,7 @@ class MainWindow(QWidget):
 
             # 滾動區域
             scroll_area = QScrollArea()
-            scroll_area.setFixedHeight(725)  # 每個小滾動區域的大小
+            # scroll_area.setFixedHeight(725)  # 每個小滾動區域的大小
 
             # 禁用水平滾動條
             scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -361,7 +361,7 @@ class MainWindow(QWidget):
         # 設置外層滾動區域內容
         self.outer_container.setLayout(self.outer_layout)
         self.outer_scroll_area.setWidget(self.outer_container)
-        self.outer_scroll_area.setFixedSize(1675, 600)
+        # self.outer_scroll_area.setFixedSize(1675, 600)
 
         # 把外層區塊添加到主佈局
         self.right_layout.addWidget(self.outer_scroll_area, 6)
@@ -384,7 +384,7 @@ class MainWindow(QWidget):
 
         # 設置佈局到 gacha_info
         self.gacha_info.setLayout(self.gacha_info_layout)
-        self.gacha_info.setFixedSize(1675, 200)
+        # self.gacha_info.setFixedSize(1675, 200)
 
         # 把外層區塊添加到主佈局
         self.right_layout.addWidget(self.gacha_info, 6)
@@ -485,7 +485,7 @@ class MainWindow(QWidget):
 
         # 左邊滾動區塊
         scroll_area_left = QScrollArea()
-        scroll_area_left.setFixedWidth(150)
+        # scroll_area_left.setFixedWidth(150)
         scroll_area_left.setWidgetResizable(True)
         self.left_content = QWidget()
         self.left_content_layout = QVBoxLayout()
@@ -735,21 +735,31 @@ class MainWindow(QWidget):
         
 
     def on_toolbox_click(self):
-        self.outer_scroll_area.setFixedSize(0, 0)
+        # self.outer_scroll_area.setFixedSize(0, 0)
         # self.game_container.setFixedSize(0, 0)
-        self.gacha_info.setFixedSize(0, 0)
-        self.stacked_widget.setFixedSize(1675, 700)
+        # self.gacha_info.setFixedSize(0, 0)
 
+        self.outer_scroll_area.setVisible(False)
+        self.gacha_info.setVisible(False)
+        
         self.web_bottom_frame.setVisible(True)
-        self.web_bottom_frame.setFixedSize(1675,100)
+
+        self.stacked_widget.setMinimumSize(1150, 400)
+        self.stacked_widget.setMaximumSize(1600, 800)
+
+        self.web_view.setMinimumWidth(1150)
+        self.web_view.setMaximumWidth(1600)
+        self.web_view.setMaximumHeight(800)
+
+        self.web_bottom_frame.setMinimumWidth(1150)
+        self.web_bottom_frame.setMaximumWidth(1600)
+        self.web_bottom_frame.setMaximumHeight(100)
 
         self.account_combo.hide()
         self.account_label.hide()
 
         self.game_account_combo.show()
         self.game_account_label.show()
-        
-
 
         self.hoyolab_account_combo.clear()
         hoyolab_accounts = self.get_hoyolab_accounts()
@@ -761,18 +771,14 @@ class MainWindow(QWidget):
 
         self.hoyolab_account_combo.show()
         self.hoyolab_account_label.show()
-        
-
-
-        self.login_website.show()
-        
+  
         for i in range(self.bottom_layout.count() - 1):
             widget = self.bottom_layout.itemAt(i).widget()
             if widget:
                 widget.hide()
 
         self.now_function = "HOYO工具箱"
-
+        self.login_website.show()
 
         
     def on_gacha_click(self):
@@ -798,8 +804,8 @@ class MainWindow(QWidget):
                 widget.show()
 
         # 恢復原本的顯示區域
-        self.outer_scroll_area.setFixedSize(1675, 600)
-        self.gacha_info.setFixedSize(1675, 200)
+        self.outer_scroll_area.setVisible(True)
+        self.gacha_info.setVisible(True)
 
     # def on_game_function_click(self):
     #     self.now_function = "遊戲功能"
@@ -1546,6 +1552,7 @@ class MainWindow(QWidget):
             error_dialog.setWindowTitle("錯誤")
             error_dialog.setInformativeText(text)
             error_dialog.setStandardButtons(QMessageBox.Ok)  # 添加「確定」按鈕
+            print(e)
 
             error_dialog.exec_()
 
@@ -1569,7 +1576,7 @@ class InputDialog(QDialog):
 
         # 設置對話框標題和大小
         self.setWindowTitle("輸入框")
-        self.setFixedSize(800, 600)
+        # self.setFixedSize(800, 600)
 
         # 創建總佈局
         main_layout = QVBoxLayout()
