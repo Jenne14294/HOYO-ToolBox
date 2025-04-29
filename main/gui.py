@@ -97,7 +97,7 @@ class MainWindow(QWidget):
             self.font_family = QFontDatabase.applicationFontFamilies(self.font_id)[0]
 
             self.app_font = self.font_family
-            self.setFont(QFont(self.app_font))
+            self.setFont(QFont(self.app_font, 26))
 
         except:
             pass
@@ -310,7 +310,7 @@ class MainWindow(QWidget):
                 margin: 5px 0;
             """)
             font = self.app_font if self.app_font else "Arial"
-            title.setFont(QFont(font))
+            title.setFont(QFont(font, 26))
 
             # 滾動區域
             scroll_area = QScrollArea()
@@ -327,7 +327,7 @@ class MainWindow(QWidget):
             label = QLabel(content * 50)  # 測試文字，顯示多行
             label.setWordWrap(True)  # 啟用換行
             label.setMaximumWidth(260)
-            label.setFont(QFont(font))
+            label.setFont(QFont(font, 26))
 
             # 創建一個 widget 作為 QScrollArea 的容器
             container_widget = QWidget()
@@ -1037,7 +1037,7 @@ class MainWindow(QWidget):
                 error_dialog = QMessageBox(self)
                 error_dialog.setIcon(QMessageBox.Critical)  # 設置為錯誤類型
                 error_dialog.setWindowTitle("錯誤")
-                error_dialog.setInformativeText("帳號不存在")
+                error_dialog.setInformativeText(f"帳號不存在\n{e}")
                 error_dialog.setStandardButtons(QMessageBox.Ok)  # 添加「確定」按鈕
                 error_dialog.exec_()
                 return
@@ -1430,10 +1430,11 @@ class MainWindow(QWidget):
                 info_dialog.exec_()
 
             except Exception as e:
+                print(e)
                 error_dialog = QMessageBox(self)
                 error_dialog.setIcon(QMessageBox.Critical)  # 設置為錯誤類型
                 error_dialog.setWindowTitle("錯誤")
-                error_dialog.setInformativeText(f"歷史紀錄導出失敗")
+                error_dialog.setInformativeText(f"歷史紀錄導出失敗\n{e}")
                 error_dialog.setStandardButtons(QMessageBox.Ok)  # 添加「確定」按鈕
 
                 error_dialog.exec_()
@@ -1546,7 +1547,7 @@ class MainWindow(QWidget):
             return
 
         except GenshinException as e:
-            text = "等級不足，無法開啟月曆" if "-501101" in str(e) else "帳號不存在，請先登入"
+            text = f"等級不足，無法開啟月曆\n{e}" if "-501101" in str(e) else "帳號不存在，請先登入"
             error_dialog = QMessageBox(self)
             error_dialog.setIcon(QMessageBox.Critical)  # 設置為錯誤類型
             error_dialog.setWindowTitle("錯誤")
@@ -1772,7 +1773,7 @@ class FetchDataThread(QThread):
             self.finished_signal.emit()
             
         except Exception as e:
-            self.update_signal.emit("讀取失敗，請先在遊戲裡打開抽卡歷史紀錄")
+            self.update_signal.emit(f"讀取失敗，請先在遊戲裡打開抽卡歷史紀錄\n{e}")
             print(e)
 
 class CustomWebEnginePage(QWebEnginePage):

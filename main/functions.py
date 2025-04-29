@@ -505,6 +505,8 @@ def export_json(file_path, folder_path, game):
     with open(file_path, "r", encoding="utf8") as file:
         data = json.load(file)
 
+    uid = os.path.basename(file_path).split("_")[-1][:-5]
+
     new_data = {}
     new_data["info"] = data["info"]
 
@@ -515,9 +517,9 @@ def export_json(file_path, folder_path, game):
     if game == "崩鐵":
         new_data["info"]["version"] = "v4.0"
         new_data["hkrpg"] = [{}]
-        new_data["hkrpg"][0]["uid"] = data["info"]["uid"]
+        new_data["hkrpg"][0]["uid"] = uid
         new_data["hkrpg"][0]["lang"] = data["info"]["lang"]
-        new_data["hkrpg"][0]["timezone"] = data["info"]["region_time_zone"]
+        new_data["hkrpg"][0]["timezone"] = data["info"]["timezone"]
         new_data["hkrpg"][0]["list"] = []
 
     if game == "絕區零":
