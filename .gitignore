@@ -1,7 +1,9 @@
 main/build/
 main/HOYO ToolBox.spec
 main/HOYO_ToolBox.db
+main/config.ini
+main/__pycache__
+
 updater/updater.spec
 updater/build/
-main/config.ini
-main/
+updater/__pycache__
