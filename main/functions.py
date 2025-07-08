@@ -155,9 +155,12 @@ def get_ZZZdata_by_api():
 
     fetch_data_by_api(command, path, category, gacha_size=20, game="絕區零")
 
-def get_average(file_path, game, input_text):
+def get_average(idx, file_path, game, input_text):
+    if not os.path.exists(file_path):
+        return "沒有找到遊戲資料，請先導入遊戲資料"
+    
     # 定義標準角色和武器
-    gi_standard_char = ["莫娜", "琴", "迪盧克", "迪希雅", "七七", "提納里", "刻晴"]
+    gi_standard_char = ["莫娜", "琴", "迪盧克", "迪希雅", "七七", "提納里", "刻晴", "夢見月瑞希"]
     hsr_standard_char = ["瓦爾特", "姬子", "彥卿", "布洛妮婭", "克拉拉", "白露", "傑帕德"]
     zzz_standard_char = ["貓又", "「11號」", "珂蕾妲", "萊卡恩", "格莉絲", "麗娜"]
     
@@ -278,10 +281,14 @@ def get_average(file_path, game, input_text):
         weapon_guarantee_rate = f"{round(((2 * len(limit_weapon) - len(fivestar_weapon)) / len(limit_weapon)) * 100, 2)} %" if len(fivestar_weapon) > 0 else None
         weapon_guarantee_rate = None if not weapon_guarantee_rate else "0.0 %" if "-" in weapon_guarantee_rate else weapon_guarantee_rate
 
-        status_text = f"限定池({true_character_count} / 90) - 總抽數：{len(characters)} | 限定角色數：{len(limit_char)} | 平均限定金：{average_limit_character} | 五星角色數：{len(fivestar_char)} | 平均五星金：{average_character} | 保底不歪率：{char_guarantee_rate}\n"
-        status_text += f"武器池({true_weapon_count} / 80) - 總抽數：{len(weapons)} | 限定武器數：{len(limit_weapon)} | 平均限定金：{average_limit_weapon} | 五星武器數：{len(fivestar_weapon)} | 平均五星金：{average_weapon} | 保底不歪率：{weapon_guarantee_rate}\n"
+        status_text = ""
+        if idx == 2:
+            status_text += f"限定池({true_character_count} / 90) - 總抽數：{len(characters)}\n限定角色數：{len(limit_char)}\n平均限定金：{average_limit_character}\n五星角色數：{len(fivestar_char)}\n平均五星金：{average_character}\n保底不歪率：{char_guarantee_rate}\n"
 
-        if game == "原神":
+        elif idx == 3:
+            status_text += f"武器池({true_weapon_count} / 80) - 總抽數：{len(weapons)}\n限定武器數：{len(limit_weapon)}\n平均限定金：{average_limit_weapon}\n五星武器數：{len(fivestar_weapon)}\n平均五星金：{average_weapon}\n保底不歪率：{weapon_guarantee_rate}\n"
+
+        if game == "原神" and idx == 4:
             average_limit_collection = round(len(collection) / len(limit_coll),2) if len(limit_coll) > 0 else None
             average_collection = round(len(collection) / len(fivestar_coll),2) if len(fivestar_coll) > 0 else None 
             
@@ -291,20 +298,23 @@ def get_average(file_path, game, input_text):
             coll_guarantee_rate = f"{round(((2 * (len(limit_coll) - len(fivestar_coll))) / len(limit_coll)), 2) * 100} %" if len(fivestar_coll) > 0 else None
             coll_guarantee_rate = None if not coll_guarantee_rate else "0.0 %" if "-" in coll_guarantee_rate else coll_guarantee_rate
 
-            status_text += f"集錄池({true_collection_count} / 90) - 總抽數：{len(collection)} | 限定數量：{len(limit_coll)} | 平均限定金：{average_limit_collection} | 五星數量：{len(fivestar_coll)} | 平均五星金：{average_collection} | 保底不歪率：{coll_guarantee_rate}\n"
+            status_text += f"集錄池({true_collection_count} / 90) - 總抽數：{len(collection)}\n限定數量：{len(limit_coll)}\n平均限定金：{average_limit_collection}\n五星數量：{len(fivestar_coll)}\n平均五星金：{average_collection}\n保底不歪率：{coll_guarantee_rate}\n"
 
-        if game == "絕區零":
+        if game == "絕區零" and idx == 3:
             average_bangboo = round(len(bangboo) / len(fivestar_bangboo),2) if len(fivestar_bangboo) > 0 else None
 
             true_bangboo_count = len(bangboo_count) - 1
             true_bangboo_count = true_bangboo_count if true_bangboo_count >= 0 else 0
 
-            status_text += f"邦布池({true_bangboo_count} / 80) - 總抽數：{len(bangboo)} | 邦布五星數：{len(fivestar_bangboo)} | 平均五星數：{average_bangboo}\n"
+            status_text += f"邦布池({true_bangboo_count} / 80) - 總抽數：{len(bangboo)}\n邦布五星數：{len(fivestar_bangboo)}\n平均五星數：{average_bangboo}\n"
 
-        if game != "絕區零":
-            status_text += f"新手池({true_novice_count} / 50) - 總抽數：{len(novice)} | 新手五星數：{len(fivestar_novice)} | 平均五星數：{average_novice}\n"
+        if game != "絕區零" and idx == 0:
+            status_text += f"新手池({true_novice_count} / 50) - 總抽數：{len(novice)}\n新手五星數：{len(fivestar_novice)}\n平均五星數：{average_novice}\n"
 
-        status_text += f"常駐池({true_standard_count} / 90) - 總抽數：{len(standard)}"
+        if idx == 1:
+            status_text += f"常駐池({true_standard_count} / 90) - 總抽數：{len(standard)}"
+
+
         result_text = status_text
         
     else:
@@ -322,7 +332,7 @@ def get_average(file_path, game, input_text):
 
         average = round(total / len(limit), 2) if len(limit) > 0 else None
         result_text = (
-        f"總抽數：{total} | 限定數：{len(limit)} | 平均限定金：{average}"
+        f"總抽數：{total}\n限定數：{len(limit)}\n平均限定金：{average}"
     )
         
     return result_text

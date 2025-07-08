@@ -2,6 +2,7 @@ import os
 import json
 import configparser
 import asyncio
+
 import GenshinAPI
 import functions
 import sys
@@ -9,7 +10,7 @@ import isodate
 import subprocess
 import time
 
-from PyQt5.QtWidgets import QApplication, QVBoxLayout, QHBoxLayout, QRadioButton, QButtonGroup, QLabel, QComboBox, QWidget, QFrame, QPushButton, QScrollArea, QFileDialog, QMessageBox, QDialog, QTextEdit, QStackedWidget, QProgressBar
+from PyQt5.QtWidgets import QApplication, QVBoxLayout, QHBoxLayout, QRadioButton, QButtonGroup, QLabel, QComboBox, QWidget, QFrame, QPushButton, QScrollArea, QFileDialog, QMessageBox, QDialog, QTextEdit, QStackedWidget, QSizePolicy
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage
 from PyQt5.QtCore import QUrl, Qt, QThread, pyqtSignal, QSize
 from PyQt5.QtGui import QFont, QFontDatabase, QIcon, QPixmap, QBrush, QColor
@@ -35,7 +36,7 @@ if not os.path.exists("./config.ini"):
     config.add_section('General')
     config.set('General', 'Author', 'Jenne14294')
     config.set('General', 'AppName', 'HOYO ToolBox')
-    config.set('General', 'version', '1.15')
+    config.set('General', 'version', '1.16')
 
     config.add_section('Settings')
     config.set('Settings', 'Language', 'zh-TW')
@@ -84,7 +85,7 @@ class MainWindow(QWidget):
         
     def initUI(self):
         self.setWindowTitle("HOYO ToolBox")
-        self.setGeometry(300, 175, 1150, 600)
+        self.setGeometry(300, 175, 800, 850)
         self.now_function = "抽卡紀錄"
         self.web_button_function = ""
         self.update_signal = pyqtSignal(str)
@@ -108,14 +109,14 @@ class MainWindow(QWidget):
         # 左邊垂直區塊
         self.left_frame = QFrame()
         self.left_frame.setFrameShape(QFrame.StyledPanel)
-        left_layout = QVBoxLayout()
+        MainButtonLayout_Top = QVBoxLayout()
 
         # 添加遊戲選項 RadioButtons
         self.game_label = QLabel("選擇遊戲：")
-        self.radio_1 = QRadioButton("原神")
-        self.radio_1.setIcon(QIcon(QPixmap("./assets/icons/GI.jpeg")))
-        self.radio_1.setIconSize(QSize(64, 64))
-        self.radio_1.setStyleSheet("""
+        self.GenshinImpact_Icon = QRadioButton("原神")
+        self.GenshinImpact_Icon.setIcon(QIcon(QPixmap("./assets/icons/GI.jpeg")))
+        self.GenshinImpact_Icon.setIconSize(QSize(64, 64))
+        self.GenshinImpact_Icon.setStyleSheet("""
             QRadioButton {
                 color: transparent;
                 background-color: #2E2E2E; /* 深灰色背景 */
@@ -123,10 +124,10 @@ class MainWindow(QWidget):
             }
         """)
 
-        self.radio_2 = QRadioButton("崩鐵")
-        self.radio_2.setIcon(QIcon(QPixmap("./assets/icons/hsr.png")))
-        self.radio_2.setIconSize(QSize(64, 64))
-        self.radio_2.setStyleSheet("""
+        self.HonkaiStarRail_Icon = QRadioButton("崩鐵")
+        self.HonkaiStarRail_Icon.setIcon(QIcon(QPixmap("./assets/icons/hsr.png")))
+        self.HonkaiStarRail_Icon.setIconSize(QSize(64, 64))
+        self.HonkaiStarRail_Icon.setStyleSheet("""
             QRadioButton {
                 color: transparent;
                 background-color: #2E2E2E; /* 深灰色背景 */
@@ -134,10 +135,10 @@ class MainWindow(QWidget):
             }
         """)
 
-        self.radio_3 = QRadioButton("絕區零")
-        self.radio_3.setIcon(QIcon(QPixmap("./assets/icons/zzz.png")))
-        self.radio_3.setIconSize(QSize(64, 64))
-        self.radio_3.setStyleSheet("""
+        self.ZenZoneZero_Icon = QRadioButton("絕區零")
+        self.ZenZoneZero_Icon.setIcon(QIcon(QPixmap("./assets/icons/zzz.png")))
+        self.ZenZoneZero_Icon.setIconSize(QSize(64, 64))
+        self.ZenZoneZero_Icon.setStyleSheet("""
             QRadioButton {
                 color: transparent;
                 background-color: #2E2E2E; /* 深灰色背景 */
@@ -145,23 +146,23 @@ class MainWindow(QWidget):
             }
         """)
 
-        self.radio_1.setChecked(True)
+        self.GenshinImpact_Icon.setChecked(True)
 
         # RadioButton 群組
-        self.button_group = QButtonGroup(self)
-        self.button_group.addButton(self.radio_1)
-        self.button_group.addButton(self.radio_2)
-        self.button_group.addButton(self.radio_3)
+        self.GameIconGroup = QButtonGroup(self)
+        self.GameIconGroup.addButton(self.GenshinImpact_Icon)
+        self.GameIconGroup.addButton(self.HonkaiStarRail_Icon)
+        self.GameIconGroup.addButton(self.ZenZoneZero_Icon)
 
         # 添加到左邊布局
-        left_layout.addWidget(self.game_label)
-        left_layout.addWidget(self.radio_1)
-        left_layout.addWidget(self.radio_2)
-        left_layout.addWidget(self.radio_3)
+        MainButtonLayout_Top.addWidget(self.game_label)
+        MainButtonLayout_Top.addWidget(self.GenshinImpact_Icon)
+        MainButtonLayout_Top.addWidget(self.HonkaiStarRail_Icon)
+        MainButtonLayout_Top.addWidget(self.ZenZoneZero_Icon)
 
-        self.radio_1.toggled.connect(self.change_game)
-        self.radio_2.toggled.connect(self.change_game)
-        self.radio_3.toggled.connect(self.change_game)
+        self.GenshinImpact_Icon.toggled.connect(self.change_game)
+        self.HonkaiStarRail_Icon.toggled.connect(self.change_game)
+        self.ZenZoneZero_Icon.toggled.connect(self.change_game)
 
         # 添加紀錄帳號選單
         self.account_combo = QComboBox()
@@ -170,8 +171,8 @@ class MainWindow(QWidget):
         self.account_combo.addItems(accounts)
         self.account_combo.setCurrentIndex(0)  # 預設選擇 "帳號1"
         self.account_combo.currentTextChanged.connect(self.update_account_display)
-        left_layout.addWidget(self.account_label)
-        left_layout.addWidget(self.account_combo)
+        MainButtonLayout_Top.addWidget(self.account_label)
+        MainButtonLayout_Top.addWidget(self.account_combo)
 
         # 添加hoyolab帳號選單
         self.hoyolab_account_combo = QComboBox()
@@ -197,46 +198,46 @@ class MainWindow(QWidget):
         self.game_account_label.hide()
 
 
-        left_layout.addWidget(self.game_account_label)
-        left_layout.addWidget(self.game_account_combo)
+        MainButtonLayout_Top.addWidget(self.game_account_label)
+        MainButtonLayout_Top.addWidget(self.game_account_combo)
 
-        left_layout.addWidget(self.hoyolab_account_label)
-        left_layout.addWidget(self.hoyolab_account_combo)
+        MainButtonLayout_Top.addWidget(self.hoyolab_account_label)
+        MainButtonLayout_Top.addWidget(self.hoyolab_account_combo)
 
-        # 按鈕 - 獲取月曆
-        self.login_website = QPushButton("網頁登入")
-        self.login_website.hide()
-        self.login_website.clicked.connect(self.open_website)  # 註冊事件
-        left_layout.addWidget(self.login_website)
+        # 網頁登入按鈕
+        self.WebsiteLoginButton = QPushButton("網頁登入")
+        self.WebsiteLoginButton.hide() # 預設隱藏(第二功能才會用到)
+        self.WebsiteLoginButton.clicked.connect(self.open_website)  # 註冊事件
+        MainButtonLayout_Top.addWidget(self.WebsiteLoginButton)
 
         # 填充剩餘空間
-        left_layout.addStretch()
+        MainButtonLayout_Top.addStretch()
 
         # 新增功能區塊 (底部)
-        self.bottom_layout = QVBoxLayout()
+        self.MainButtonLayout_Bottom = QVBoxLayout()
 
         # 按鈕 - 獲取月曆
-        self.btn_diary = QPushButton("獲取月曆資料")
-        self.btn_diary.hide()
-        self.btn_diary.clicked.connect(self.get_diary)  # 註冊事件
-        self.bottom_layout.addWidget(self.btn_diary)
+        self.GetDiaryButton = QPushButton("獲取月曆資料")
+        self.GetDiaryButton.hide()
+        self.GetDiaryButton.clicked.connect(self.get_diary)  # 註冊事件
+        self.MainButtonLayout_Bottom.addWidget(self.GetDiaryButton)
 
-        btn_read_history = QPushButton("讀取歷史紀錄")
-        btn_read_history.clicked.connect(self.fetch_data)
-        self.bottom_layout.addWidget(btn_read_history)
+        self.GetGachaHistoryButton = QPushButton("讀取歷史紀錄")
+        self.GetGachaHistoryButton.clicked.connect(self.fetch_data)
+        self.MainButtonLayout_Bottom.addWidget(self.GetGachaHistoryButton)
 
         # 外部輸入選單 (導入 JSON 或 手動輸入)
-        self.input_combo = QComboBox()
-        self.input_label = QLabel("外部輸入：")
-        self.input_combo.addItems(["選擇方式", "導入 JSON", "手動輸入"])
-        self.input_combo.currentTextChanged.connect(self.external_input)
-        self.bottom_layout.addWidget(self.input_label)
-        self.bottom_layout.addWidget(self.input_combo)
+        self.ImportDataButton = QComboBox()
+        self.ImportDataTypeLabel = QLabel("外部輸入：")
+        self.ImportDataButton.addItems(["==選擇方式==", "導入 JSON", "手動輸入"])
+        self.ImportDataButton.currentTextChanged.connect(self.external_data)
+        self.MainButtonLayout_Bottom.addWidget(self.ImportDataTypeLabel)
+        self.MainButtonLayout_Bottom.addWidget(self.ImportDataButton)
 
         # 導出紀錄按鈕
-        btn_export = QPushButton("導出紀錄")
-        btn_export.clicked.connect(self.export_data)
-        self.bottom_layout.addWidget(btn_export)
+        self.ExportHistoryButton = QPushButton("導出紀錄")
+        self.ExportHistoryButton.clicked.connect(self.export_data)
+        self.MainButtonLayout_Bottom.addWidget(self.ExportHistoryButton)
 
         
 
@@ -248,23 +249,23 @@ class MainWindow(QWidget):
         # self.language_combo.addItems(list(language_dict.values()))
         # #self.language_combo.currentTextChanged.connect(self.change_language)
         # #self.language_combo.setCurrentIndex(0)
-        # self.bottom_layout.addWidget(self.language_label)
-        # self.bottom_layout.addWidget(self.language_combo)
+        # self.MainButtonLayout_Bottom.addWidget(self.language_label)
+        # self.MainButtonLayout_Bottom.addWidget(self.language_combo)
 
         # 按鈕 - 更新檢查
-        self.btn_update = QPushButton("檢查更新")
-        self.btn_update.setIcon(QIcon("./assets/icons/update.png"))
-        self.btn_update.clicked.connect(check_version)  # 註冊事件
-        self.bottom_layout.addWidget(self.btn_update)
+        self.CheckUpdateButton = QPushButton("檢查更新")
+        self.CheckUpdateButton.setIcon(QIcon("./assets/icons/update.png"))
+        self.CheckUpdateButton.clicked.connect(check_version)  # 註冊事件
+        self.MainButtonLayout_Bottom.addWidget(self.CheckUpdateButton)
 
-        self.version_text = QLabel(f"v {version}")
-        self.version_text.setStyleSheet("font-size: 20px;")
-        self.bottom_layout.addWidget(self.version_text)
+        self.VersionLabel = QLabel(f"v {version}")
+        self.VersionLabel.setStyleSheet("font-size: 20px;")
+        self.MainButtonLayout_Bottom.addWidget(self.VersionLabel)
 
-        # 將底部功能區塊設置為左邊的底部區域
-        left_layout.addLayout(self.bottom_layout)
+        # 將底部按鈕區塊加入左邊頂部按鈕區塊
+        MainButtonLayout_Top.addLayout(self.MainButtonLayout_Bottom)
 
-        self.left_frame.setLayout(left_layout)
+        self.left_frame.setLayout(MainButtonLayout_Top)
 
         # 右邊主區塊，比例 8:1:1
         self.right_frame = QFrame()
@@ -293,78 +294,93 @@ class MainWindow(QWidget):
         self.outer_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)  # 禁用垂直滾動條
 
         # 創建容器和佈局作為外層滾動區域的內容
+        # 先建立最外層容器與垂直佈局
         self.outer_container = QWidget()
+        outer_v_layout = QVBoxLayout(self.outer_container)
+
+        # 五個按鈕放一個水平佈局（上面）
+        button_layout = QHBoxLayout()
+        self.GachaTypeButtonList = []
+
+        for i in range(5):
+            btn = QPushButton(f"按鈕 {i+1}")
+            btn.clicked.connect(lambda checked, idx=i: self.show_game_options(idx))
+            button_layout.addWidget(btn)
+            self.GachaTypeButtonList.append(btn)
+
+
+        # 你的多個區塊水平佈局（下面）
         self.outer_layout = QHBoxLayout()
 
-        # 創建多個水平排列的小區塊
-        for i in range(keys_length):  # 創建多個小區塊
-            # 標題
-            title = QLabel("")
-            title.setStyleSheet("""
-                color: white;
-                font-size: 18px;
-                font-weight: bold;
-                padding: 10px;
-                background-color: #4CAF50; /* 綠色背景 */
-                border-radius: 5px;
-                margin: 5px 0;
-            """)
-            font = self.app_font if self.app_font else "Arial"
-            title.setFont(QFont(font, 26))
+        # 把按鈕水平佈局和區塊水平佈局依序加入外層垂直佈局
+        outer_v_layout.addLayout(button_layout)
+        outer_v_layout.addLayout(self.outer_layout)
 
-            # 滾動區域
-            scroll_area = QScrollArea()
-            # scroll_area.setFixedHeight(725)  # 每個小滾動區域的大小
+        # 設置滾動區域的 widget 為最外層容器
+        self.outer_scroll_area.setWidget(self.outer_container)
+        self.outer_scroll_area.setWidgetResizable(True)
+        self.outer_scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-            # 禁用水平滾動條
-            scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        title = QLabel("")
+        title.setStyleSheet("""
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 10px;
+            background-color: #4CAF50;
+            border-radius: 5px;
+            margin: 5px 0;
+        """)
 
-            # 垂直滾動條僅在需要時顯示
-            scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        font = self.app_font if self.app_font else "Arial"
+        title.setFont(QFont(font, 26))
 
-            # 創建 Label 內容
-            content = "_" * 50 + "\n"  # 測試用文字內容
-            label = QLabel(content * 50)  # 測試文字，顯示多行
-            label.setWordWrap(True)  # 啟用換行
-            label.setMaximumWidth(260)
-            label.setFont(QFont(font, 26))
+        # 內容 Label
+        content = "_" * 20 + "\n"
+        label = QLabel(content * 20)
+        label.setWordWrap(True)
+        label.setFont(QFont(font, 26))
 
-            # 創建一個 widget 作為 QScrollArea 的容器
-            container_widget = QWidget()
-            container_layout = QVBoxLayout()
-            container_layout.setAlignment(Qt.AlignTop)  # 讓文字從頂部開始
-            container_layout.addWidget(label)  # 把 label 放到容器中
-            container_widget.setLayout(container_layout)
+        # 直接用一個 QWidget 包裝 label 作為 scroll_area 的 widget
+        container_widget = QWidget()
+        container_layout = QVBoxLayout(container_widget)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.addWidget(label)
+        container_layout.setAlignment(Qt.AlignTop)
 
-            # 設置 QScrollArea 的 widget
-            scroll_area.setWidget(container_widget)
+        # scroll_area 設定
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        scroll_area.setWidget(container_widget)
 
-            # 創建一個垂直區塊包裹標題和滾動區域
-            group_widget = QWidget()
-            group_layout = QVBoxLayout()
-            group_layout.setSpacing(10)  # 增加間距讓區塊更有呼吸感
-            group_layout.addWidget(title)
-            group_layout.addWidget(scroll_area)
-            group_widget.setLayout(group_layout)
+        # group widget 包標題和滾動區域
+        group_widget = QWidget()
+        group_layout = QVBoxLayout(group_widget)
+        group_layout.setSpacing(10)
+        group_layout.setContentsMargins(10, 10, 10, 10)
+        group_layout.addWidget(title)
+        group_layout.addWidget(scroll_area)
 
-            # 設置外框樣式
-            group_widget.setStyleSheet("""
-                background-color: #333;  /* 深色背景 */
-                border-radius: 10px;
-                padding: 10px;
-            """)
+        group_widget.setStyleSheet("""
+            background-color: #333;
+            border-radius: 10px;
+            padding: 10px;
+        """)
 
-            # 將整個區塊添加到外層水平佈局
-            self.outer_layout.addWidget(group_widget)
-            self.group_boxes.append((title, label, scroll_area))
+        self.outer_layout.addWidget(group_widget, stretch=1)
+        self.group_boxes.append((title, label, scroll_area))
+
 
         # 設置外層滾動區域內容
         self.outer_container.setLayout(self.outer_layout)
         self.outer_scroll_area.setWidget(self.outer_container)
+        self.outer_scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         # self.outer_scroll_area.setFixedSize(1675, 600)
 
         # 把外層區塊添加到主佈局
-        self.right_layout.addWidget(self.outer_scroll_area, 6)
+        self.right_layout.addWidget(self.outer_scroll_area, 8)
 
         # 顯示抽數資訊
         self.gacha_info = QWidget()
@@ -374,7 +390,7 @@ class MainWindow(QWidget):
 
         # 測試用文字內容
         content = "_" * 100 + "\n"
-        gacha_label = QLabel(content * 5)  # 測試文字，顯示多行
+        gacha_label = QLabel(content * 3)  # 測試文字，顯示多行
         gacha_label.setWordWrap(True)  # 啟用換行
         gacha_label.setMaximumWidth(1650)
         self.gacha_info_list.append(gacha_label)
@@ -387,82 +403,95 @@ class MainWindow(QWidget):
         # self.gacha_info.setFixedSize(1675, 200)
 
         # 把外層區塊添加到主佈局
-        self.right_layout.addWidget(self.gacha_info, 6)
+        self.right_layout.addWidget(self.gacha_info, 2)
 
         # 合併後的按鈕區塊，放在右邊區塊的底部
         self.bottom_frame = QFrame()
-        bottom_layout = QHBoxLayout()
+        MainButtonLayout_Bottom = QHBoxLayout()
 
         # 按鈕 - 抽卡紀錄
         btn_gacha = QPushButton("抽卡紀錄")
         btn_gacha.clicked.connect(self.on_gacha_click)  # 註冊事件
-        bottom_layout.addWidget(btn_gacha)
+        MainButtonLayout_Bottom.addWidget(btn_gacha)
 
         # 按鈕 - HOYO工具箱
         btn_toolbox = QPushButton("HOYO工具箱")
         btn_toolbox.clicked.connect(self.on_toolbox_click)  # 註冊事件
-        bottom_layout.addWidget(btn_toolbox)
+        MainButtonLayout_Bottom.addWidget(btn_toolbox)
 
         # 按鈕 - 遊戲功能
         # btn_game_features = QPushButton("遊戲功能")
         # btn_game_features.clicked.connect(self.on_game_function_click)
-        # bottom_layout.addWidget(btn_game_features)
+        # MainButtonLayout_Bottom.addWidget(btn_game_features)
 
-        #堆疊區塊
         self.stacked_widget = QStackedWidget()
-        self.right_layout.addWidget(self.stacked_widget)
+
+        container = QWidget()
+        container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        right_stacked_layout = QVBoxLayout(container)
+        right_stacked_layout.setContentsMargins(0, 0, 0, 0)
+        right_stacked_layout.setSpacing(0)
+
+        self.stacked_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        right_stacked_layout.addWidget(self.stacked_widget, stretch=1)
+
+        self.right_layout.addWidget(container, stretch=1, alignment=Qt.AlignTop)
+
+
 
         # 顯示網頁區域
         self.web_view = QWebEngineView()
         self.web_view.setStyleSheet("background-color: lightgray;")
 
         #網頁按鈕
-        self.bottom_frame.setLayout(bottom_layout)
+        self.bottom_frame.setLayout(MainButtonLayout_Bottom)
         self.right_layout.addWidget(self.bottom_frame, 1)  # 底部按鈕區佔比例 1
 
-        self.web_bottom_frame = QFrame()
-        bottom_layout = QHBoxLayout()
+        self.web_button_frame = QFrame()
+        MainButtonLayout_Bottom = QHBoxLayout()
         self.web_button_list = []
 
         btn_notes = QPushButton("即時便籤")
         btn_notes.clicked.connect(self.show_notes)  # 註冊事件
-        bottom_layout.addWidget(btn_notes)
+        MainButtonLayout_Bottom.addWidget(btn_notes)
         self.web_button_list.append(btn_notes)
 
         btn_calander = QPushButton("收入月曆")
         btn_calander.clicked.connect(self.show_now_income_calander)  # 註冊事件
-        bottom_layout.addWidget(btn_calander)
+        MainButtonLayout_Bottom.addWidget(btn_calander)
         self.web_button_list.append(btn_calander)
 
         btn_caculator = QPushButton("傷害計算")
         btn_caculator.clicked.connect(self.show_caculator)  # 註冊事件
-        bottom_layout.addWidget(btn_caculator)
+        MainButtonLayout_Bottom.addWidget(btn_caculator)
         btn_caculator.hide()
         self.web_button_list.append(btn_caculator)
 
         btn_record = QPushButton("查看戰績")
         btn_record.clicked.connect(self.view_record)  # 註冊事件
-        bottom_layout.addWidget(btn_record)
+        MainButtonLayout_Bottom.addWidget(btn_record)
         self.web_button_list.append(btn_record)
 
         btn_daily = QPushButton("每日簽到")
         btn_daily.clicked.connect(self.daily_function)  # 註冊事件
-        bottom_layout.addWidget(btn_daily)
+        MainButtonLayout_Bottom.addWidget(btn_daily)
         self.web_button_list.append(btn_daily)
 
         btn_redeem = QPushButton("兌換碼")
         btn_redeem.clicked.connect(self.redeem_code)  # 註冊事件
-        bottom_layout.addWidget(btn_redeem)
+        MainButtonLayout_Bottom.addWidget(btn_redeem)
         self.web_button_list.append(btn_redeem)
 
         btn_map = QPushButton("互動地圖")
         btn_map.clicked.connect(self.interact_map)  # 註冊事件
-        bottom_layout.addWidget(btn_map)
+        MainButtonLayout_Bottom.addWidget(btn_map)
         self.web_button_list.append(btn_map)
 
-        self.web_bottom_frame.setLayout(bottom_layout)
-        self.right_layout.insertWidget(0, self.web_bottom_frame, 1)  # 底部按鈕區佔比例 1
-        self.web_bottom_frame.setFixedSize(0,0)
+        self.web_button_frame.setLayout(MainButtonLayout_Bottom)
+        self.right_layout.insertWidget(0, self.web_button_frame, 1)  # 底部按鈕區佔比例 1
+        self.web_button_frame.hide()
 
         self.stacked_widget.addWidget(self.web_view)
 
@@ -546,7 +575,7 @@ class MainWindow(QWidget):
 
         # 添加到 QStackedWidget
         self.stacked_widget.addWidget(self.income_calander)
-        self.stacked_widget.setFixedSize(0,0)
+        self.stacked_widget.setFixedSize(0, 0)
 
 
 
@@ -722,6 +751,9 @@ class MainWindow(QWidget):
         }
         """)
 
+        self.right_frame.setStyleSheet("background-color: rgba(0, 255, 255, 0.2);")
+
+
         # 右邊內容填充
         self.right_frame.setLayout(self.right_layout)
 
@@ -733,6 +765,20 @@ class MainWindow(QWidget):
         self.setLayout(main_layout)
         self.show_game_options()
         
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+
+        n = len(self.group_boxes)  # 總共有幾個區塊
+        margin = 20  # 每個區塊左右留的邊距，可視需要調整
+        spacing = self.outer_layout.spacing() * (n - 1)  # layout 間距總和
+
+        available_width = self.width() - spacing - margin * 2
+        target_width = available_width // n  # 最小寬度 100 避免過小
+
+        for title, label, _ in self.group_boxes:
+            label.setMaximumWidth(target_width)
+            title.setMaximumWidth(target_width)
+
 
     def on_toolbox_click(self):
         # self.outer_scroll_area.setFixedSize(0, 0)
@@ -742,18 +788,20 @@ class MainWindow(QWidget):
         self.outer_scroll_area.setVisible(False)
         self.gacha_info.setVisible(False)
         
-        self.web_bottom_frame.setVisible(True)
+        self.web_button_frame.show()
+        self.stacked_widget.show()
+        self.web_view.show()
 
-        self.stacked_widget.setMinimumSize(1150, 400)
-        self.stacked_widget.setMaximumSize(1600, 800)
+        self.stacked_widget.setMinimumSize(800, 850)
+        # self.stacked_widget.setMaximumSize(1600, 800)
 
         self.web_view.setMinimumWidth(1150)
-        self.web_view.setMaximumWidth(1600)
-        self.web_view.setMaximumHeight(800)
+        # self.web_view.setMaximumWidth(1600)
+        # self.web_view.setMaximumHeight(800)
 
-        self.web_bottom_frame.setMinimumWidth(1150)
-        self.web_bottom_frame.setMaximumWidth(1600)
-        self.web_bottom_frame.setMaximumHeight(100)
+        self.web_button_frame.setMinimumWidth(100)
+        self.web_button_frame.setMaximumWidth(1150)
+        self.web_button_frame.setMaximumHeight(100)
 
         self.account_combo.hide()
         self.account_label.hide()
@@ -772,13 +820,13 @@ class MainWindow(QWidget):
         self.hoyolab_account_combo.show()
         self.hoyolab_account_label.show()
   
-        for i in range(self.bottom_layout.count() - 1):
-            widget = self.bottom_layout.itemAt(i).widget()
+        for i in range(self.MainButtonLayout_Bottom.count() - 1):
+            widget = self.MainButtonLayout_Bottom.itemAt(i).widget()
             if widget:
                 widget.hide()
 
         self.now_function = "HOYO工具箱"
-        self.login_website.show()
+        self.WebsiteLoginButton.show()
 
         
     def on_gacha_click(self):
@@ -791,15 +839,15 @@ class MainWindow(QWidget):
         self.game_account_label.hide()
         self.hoyolab_account_combo.hide()
         self.hoyolab_account_label.hide()
-        self.btn_diary.hide()
-        self.login_website.hide()
+        self.GetDiaryButton.hide()
+        self.WebsiteLoginButton.hide()
         
-        self.web_bottom_frame.setFixedSize(0, 0)
+        self.web_button_frame.hide()
         # self.game_container.setFixedSize(0, 0)
-        self.stacked_widget.setFixedSize(0, 0)
+        self.stacked_widget.hide()
 
-        for i in range(1, self.bottom_layout.count() - 2):
-            widget = self.bottom_layout.itemAt(i).widget()
+        for i in range(1, self.MainButtonLayout_Bottom.count() - 2):
+            widget = self.MainButtonLayout_Bottom.itemAt(i).widget()
             if widget:
                 widget.show()
 
@@ -813,17 +861,17 @@ class MainWindow(QWidget):
     #     self.outer_scroll_area.setFixedSize(0, 0)
     #     self.gacha_info.setFixedSize(0, 0)
     #     self.stacked_widget.setFixedSize(0, 0)
-    #     self.web_bottom_frame.setVisible(False)
-    #     self.web_bottom_frame.setFixedSize(0, 0)
+    #     self.web_button_frame.setVisible(False)
+    #     self.web_button_frame.setFixedSize(0, 0)
     #     self.account_combo.hide()
     #     self.account_label.hide()
-    #     self.btn_diary.hide()
-    #     self.login_website.hide()
+    #     self.GetDiaryButton.hide()
+    #     self.WebsiteLoginButton.hide()
     #     self.game_account_combo.hide()
     #     self.game_account_label.hide()
 
-    #     for i in range(self.bottom_layout.count() - 1):
-    #         widget = self.bottom_layout.itemAt(i).widget()
+    #     for i in range(self.MainButtonLayout_Bottom.count() - 1):
+    #         widget = self.MainButtonLayout_Bottom.itemAt(i).widget()
     #         if widget:
     #             widget.hide()
 
@@ -837,9 +885,9 @@ class MainWindow(QWidget):
 
     def view_record(self):
         self.web_button_function = "查看戰績"
-        self.btn_diary.hide()
+        self.GetDiaryButton.hide()
         self.show_web_view()
-        selected_game = self.button_group.checkedButton().text()
+        selected_game = self.GameIconGroup.checkedButton().text()
 
         game_urls = {
             "原神": "https://act.hoyolab.com/app/community-game-records-sea/index.html?bbs_presentation_style=fullscreen&bbs_auth_required=true&v=104&gid=2&utm_source=hoyolab&utm_medium=tools&bbs_theme=dark&bbs_theme_device=1#/ys",
@@ -851,9 +899,9 @@ class MainWindow(QWidget):
 
     def daily_function(self):
         self.web_button_function = "每日簽到"
-        self.btn_diary.hide()
+        self.GetDiaryButton.hide()
         self.show_web_view()
-        selected_game = self.button_group.checkedButton().text()
+        selected_game = self.GameIconGroup.checkedButton().text()
         
         game_urls = {
             "原神": "https://act.hoyolab.com/ys/event/signin-sea-v3/index.html?act_id=e202102251931481",
@@ -865,9 +913,9 @@ class MainWindow(QWidget):
 
     def redeem_code(self):
         self.web_button_function = "兌換碼"
-        self.btn_diary.hide()
+        self.GetDiaryButton.hide()
         self.show_web_view()
-        selected_game = self.button_group.checkedButton().text()
+        selected_game = self.GameIconGroup.checkedButton().text()
         
         game_urls = {
             "原神": "https://genshin.hoyoverse.com/zh-tw/gift",
@@ -880,9 +928,9 @@ class MainWindow(QWidget):
 
     def interact_map(self):
         self.web_button_function = "互動地圖"
-        self.btn_diary.hide()
+        self.GetDiaryButton.hide()
         self.show_web_view()
-        selected_game = self.button_group.checkedButton().text()
+        selected_game = self.GameIconGroup.checkedButton().text()
         
         game_urls = {
 
@@ -922,7 +970,7 @@ class MainWindow(QWidget):
         self.game_account_combo.addItems(game_accounts)
         
     def change_game(self):    
-        game = self.button_group.checkedButton().text()
+        game = self.GameIconGroup.checkedButton().text()
 
         if self.now_function == "HOYO工具箱":
             self.on_toolbox_click()
@@ -942,7 +990,7 @@ class MainWindow(QWidget):
             self.account_combo.addItems(accounts)
 
             self.show_game_options()
-            self.input_combo.setCurrentIndex(0)
+            self.ImportDataButton.setCurrentIndex(0)
 
         # elif self.now_function == "遊戲功能":
         #     try:
@@ -968,7 +1016,7 @@ class MainWindow(QWidget):
     def get_accounts(self):
         account_options = []
         folder_path = f"{data_path}/user_data"
-        selected_game = self.button_group.checkedButton().text()
+        selected_game = self.GameIconGroup.checkedButton().text()
 
         if not os.path.exists(folder_path):
             return account_options
@@ -990,7 +1038,7 @@ class MainWindow(QWidget):
     
     def get_game_accounts(self):
         selected_id = self.hoyolab_account_combo.currentData()
-        selected_game = self.button_group.checkedButton().text()
+        selected_game = self.GameIconGroup.checkedButton().text()
         
         account_options = []
         try:
@@ -1008,10 +1056,10 @@ class MainWindow(QWidget):
 
     def show_notes(self):
         self.web_button_function = "即時便籤"
-        self.btn_diary.hide()
+        self.GetDiaryButton.hide()
         self.stacked_widget.setCurrentWidget(self.realtime_notes)
 
-        selected_game = self.selected_game = self.button_group.checkedButton().text()
+        selected_game = self.selected_game = self.GameIconGroup.checkedButton().text()
         accountID = self.game_account_combo.currentText()
         
         data = None
@@ -1131,10 +1179,10 @@ class MainWindow(QWidget):
 
     def show_now_income_calander(self):
         self.web_button_function = "收入月曆"
-        self.btn_diary.show()
+        self.GetDiaryButton.show()
         self.stacked_widget.setCurrentWidget(self.income_calander)
 
-        selected_game = self.button_group.checkedButton().text()
+        selected_game = self.GameIconGroup.checkedButton().text()
         accountID = self.game_account_combo.currentText()
 
         game = "GenshinImpact" if selected_game == "原神" else "HonkaiStarRail" if selected_game == "崩鐵" else "ZenlessZoneZero"
@@ -1240,7 +1288,7 @@ class MainWindow(QWidget):
         
         self.stacked_widget.setCurrentWidget(self.income_calander)
 
-        selected_game = self.button_group.checkedButton().text()
+        selected_game = self.GameIconGroup.checkedButton().text()
         accountID = self.game_account_combo.currentText()
         game = "GenshinImpact" if selected_game == "原神" else "HonkaiStarRail" if selected_game == "崩鐵" else "ZenlessZoneZero"
 
@@ -1317,11 +1365,13 @@ class MainWindow(QWidget):
             self.month_data[6].setChart(chart)
         
     def show_caculator(self):
-        self.btn_diary.hide()
+        self.GetDiaryButton.hide()
 
-    def show_game_options(self):
+    def show_game_options(self, idx=None):
+        idx = 0 if not idx else idx
+
         options = []
-        selected_game = self.button_group.checkedButton().text()
+        selected_game = self.GameIconGroup.checkedButton().text()
 
         gameText = "GenshinImpact" if selected_game == "原神" else "Honkai_StarRail" if selected_game == "崩鐵" else "ZenlessZoneZero"
         accountID = self.account_combo.currentText() if self.account_combo.currentText() != "" else [file for file in os.listdir(f"{data_path}/user_data") if gameText in file][0].split("_")[-1][:-5] if len([file for file in os.listdir(f"{data_path}/user_data") if gameText in file]) >= 1 else ""
@@ -1344,47 +1394,44 @@ class MainWindow(QWidget):
             with open(path, "r", encoding="utf8") as file:
                 data = json.load(file)
 
-            for i, option in enumerate(options):
-                
-                if option == "資訊":
-                    continue
-
-                counter = 0
-                text = ""
-                keys = list(data.keys())
-
-                self.group_boxes[i - 1][0].setText(option)
-                self.group_boxes[i - 1][2].show()
-
-                if keys[i] == "info":
-                    continue
-
-                reversed_data = data[keys[i]][::-1]
-                if reversed_data == []:
-                    self.group_boxes[i - 1][1].setText("")
-                    continue
-
-                for items in reversed_data:
-                    counter += 1
-
-                    if selected_game != "絕區零" and items['rank_type'] == '5':
-                        text += f"{items['name']} [{counter}] "
-                        counter = 0
-
-                    elif selected_game == "絕區零" and items['rank_type'] == "4":
-                        text += f"{items['name']} [{counter}] "
-                        counter = 0
-
-                self.group_boxes[i - 1][1].setText(text)
+            for i in range(len(options) - 1):
+                self.GachaTypeButtonList[i].setText(options[i + 1])
 
             if selected_game != "原神":
-                self.group_boxes[4][0].setText("")
-                self.group_boxes[4][1].setText("")
-                self.group_boxes[4][2].hide()
+                self.GachaTypeButtonList[-1].hide()
+                
+            else:
+                self.GachaTypeButtonList[-1].show()
 
-            input_data = functions.get_average(path, selected_game, "")
-            self.gacha_info_list[0].setText(input_data)
-            self.gacha_info_list[0].setAlignment(Qt.AlignLeft | Qt.AlignTop)
+
+            counter = 0
+            text = ""
+            keys = list(data.keys())
+            keys.remove("info")
+
+            self.group_boxes[0][0].setText(options[idx + 1])
+            self.group_boxes[0][2].show()
+
+            reversed_data = data[keys[idx]][::-1]
+            if reversed_data == []:
+                self.group_boxes[0][1].setText("")
+                
+            for items in reversed_data:
+                counter += 1
+
+                if selected_game != "絕區零" and items['rank_type'] == '5':
+                    text += f"{items['name']} [{counter}] "
+                    counter = 0
+
+                elif selected_game == "絕區零" and items['rank_type'] == "4":
+                    text += f"{items['name']} [{counter}] "
+                    counter = 0
+
+            self.group_boxes[0][1].setText(text)
+
+        input_data = functions.get_average(idx, path, selected_game, "")
+        self.gacha_info_list[0].setText(input_data)
+        self.gacha_info_list[0].setAlignment(Qt.AlignLeft | Qt.AlignTop)
 
     def export_data(self):
         """讓用戶選擇資料夾並輸出檔案。"""
@@ -1393,7 +1440,7 @@ class MainWindow(QWidget):
             try:
                 # 載入當前帳號的資料
                 accountID = self.account_combo.currentText()
-                selected_game = self.button_group.checkedButton().text()
+                selected_game = self.GameIconGroup.checkedButton().text()
 
                 if selected_game == "原神":
                     file_path = f"{data_path}/user_data/GenshinImpact_{accountID}.json"
@@ -1440,7 +1487,7 @@ class MainWindow(QWidget):
                 error_dialog.exec_()
 
     def fetch_data(self):
-        selected_game = self.button_group.checkedButton().text()
+        selected_game = self.GameIconGroup.checkedButton().text()
 
         # 創建線程實例並連接信號
         self.thread = FetchDataThread(selected_game)
@@ -1455,7 +1502,7 @@ class MainWindow(QWidget):
     def on_thread_finished(self):
         self.show_game_options()
 
-    def external_input(self, input_name):
+    def external_data(self, input_name):
         if input_name == "手動輸入":
             self.manual_input()
         
@@ -1463,7 +1510,7 @@ class MainWindow(QWidget):
             self.import_json()
 
     def caculate_average_manual(self, text):
-        selected_game = self.button_group.checkedButton().text()
+        selected_game = self.GameIconGroup.checkedButton().text()
         result = functions.get_average("", selected_game, text)
         return result
 
@@ -1475,11 +1522,11 @@ class MainWindow(QWidget):
             result = self.caculate_average_manual(text)
             self.gacha_info_list[0].setText(result)
 
-            self.input_combo.setCurrentIndex(0)
+            self.ImportDataButton.setCurrentIndex(0)
 
     def import_json(self):
         file_path = QFileDialog.getOpenFileName(self, "打開檔案", "", "JSON 檔案 (*.json)")
-        selected_game = self.button_group.checkedButton().text()
+        selected_game = self.GameIconGroup.checkedButton().text()
 
         system_path = (f"{data_path}/user_data/GenshinImpact.json"
                     if selected_game == "原神"
@@ -1516,7 +1563,7 @@ class MainWindow(QWidget):
             self.account_combo.addItems(accounts)
             index = accounts.index(account)
             self.account_combo.setCurrentIndex(index)
-            self.input_combo.setCurrentIndex(0)
+            self.ImportDataButton.setCurrentIndex(0)
 
             self.show_game_options()
 
@@ -1526,7 +1573,7 @@ class MainWindow(QWidget):
         self.web_window.show()
             
     def get_diary(self):
-        selected_game = self.button_group.checkedButton().text()
+        selected_game = self.GameIconGroup.checkedButton().text()
         accountId = self.game_account_combo.currentText()
         
         try:
