@@ -85,7 +85,7 @@ class MainWindow(QWidget):
         
     def initUI(self):
         self.setWindowTitle("HOYO ToolBox")
-        self.setGeometry(300, 175, 800, 850)
+        self.setGeometry(300, 125, 800, 750)
         self.now_function = "抽卡紀錄"
         self.web_button_function = ""
         self.update_signal = pyqtSignal(str)
@@ -425,6 +425,7 @@ class MainWindow(QWidget):
         # MainButtonLayout_Bottom.addWidget(btn_game_features)
 
         self.stacked_widget = QStackedWidget()
+        self.stacked_widget.hide()
 
         container = QWidget()
         container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -442,8 +443,11 @@ class MainWindow(QWidget):
 
 
         # 顯示網頁區域
-        self.web_view = QWebEngineView()
-        self.web_view.setStyleSheet("background-color: lightgray;")
+        self.web_view = ScalableWebEngineView()
+
+        size_policy = QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Ignored)
+
+        self.web_view.setSizePolicy(size_policy)
 
         #網頁按鈕
         self.bottom_frame.setLayout(MainButtonLayout_Bottom)
@@ -490,7 +494,7 @@ class MainWindow(QWidget):
         self.web_button_list.append(btn_map)
 
         self.web_button_frame.setLayout(MainButtonLayout_Bottom)
-        self.right_layout.insertWidget(0, self.web_button_frame, 1)  # 底部按鈕區佔比例 1
+        self.right_layout.insertWidget(0, self.web_button_frame)  # 底部按鈕區佔比例 1
         self.web_button_frame.hide()
 
         self.stacked_widget.addWidget(self.web_view)
@@ -575,7 +579,7 @@ class MainWindow(QWidget):
 
         # 添加到 QStackedWidget
         self.stacked_widget.addWidget(self.income_calander)
-        self.stacked_widget.setFixedSize(0, 0)
+        # self.stacked_widget.setFixedSize(0, 0)
 
 
 
@@ -751,9 +755,6 @@ class MainWindow(QWidget):
         }
         """)
 
-        self.right_frame.setStyleSheet("background-color: rgba(0, 255, 255, 0.2);")
-
-
         # 右邊內容填充
         self.right_frame.setLayout(self.right_layout)
 
@@ -792,7 +793,7 @@ class MainWindow(QWidget):
         self.stacked_widget.show()
         self.web_view.show()
 
-        self.stacked_widget.setMinimumSize(800, 850)
+        self.stacked_widget.setMinimumSize(700, 600)
         # self.stacked_widget.setMaximumSize(1600, 800)
 
         self.web_view.setMinimumWidth(1150)
@@ -1872,7 +1873,38 @@ class WebWindow(QWidget):
         GenshinAPI.write_cookie(cookies['account_id_v2'])
         self.close()
 
+class ScalableWebEngineView(QWebEngineView):
+    # 定義一個基礎寬度，當 web_view 的寬度是這個值時，縮放比例為 1.0 (100%)
+    # 你可以根據你的網頁內容最適合的寬度來調整這個值
+    BASE_WIDTH = 800
 
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # 監聽 URL 變化，確保新頁面也能正確縮放
+        self.urlChanged.connect(self.update_zoom_on_load)
+   
+    def update_zoom_on_load(self):
+        # 頁面加載完成後，有時需要稍微延遲一下再設置縮放，確保 DOM 已經準備好
+        # 但通常直接呼叫也可以
+        self.update_zoom()
+   
+    def resizeEvent(self, event):
+        """
+        當元件大小改變時，這個事件會被觸發
+        """
+        # 首先，執行父類別原本的 resizeEvent 邏輯
+        super().resizeEvent(event)
+        # 然後，執行我們自訂的縮放邏輯
+        self.update_zoom()
+   
+    def update_zoom(self):
+        """
+        計算並應用新的縮放比例
+        """
+        if self.width() > 0:  # 避免在寬度為 0 時進行計算
+            # 計算縮放因子：目前寬度 / 基礎寬度
+            zoom_factor = self.width() / self.BASE_WIDTH
+            self.setZoomFactor(zoom_factor)
 
 # 主函式
 if __name__ == "__main__":
