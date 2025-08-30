@@ -27,6 +27,14 @@ def fetch_data_by_api(command, path, categories, gacha_size, game):
     # 讀取被複製到剪貼簿的內容
     warp_url = pyperclip.paste()
 
+    if game == "原神":
+        warp_url += "hk4e_global&size=20&gacha_type=301&end_id="
+
+    elif game == "絕區零":
+        page_index = warp_url.find("&page")
+        warp_url = warp_url[:page_index]
+        warp_url += "&size=20&real_gacha_type=1&end_id="
+
     if "api/getLdGachaLog" in warp_url:
         warp_url = warp_url.replace("api/getLdGachaLog", "api/getGachaLog")
     
@@ -160,9 +168,12 @@ def get_ZZZdata_by_api():
         "bangboo": "5"
     }
 
-    fetch_data_by_api(command, path, category, gacha_size=1000, game="絕區零")
+    fetch_data_by_api(command, path, category, gacha_size=20, game="絕區零")
 
 def get_average(idx, file_path, game, input_text):
+    if game == "絕區零":
+        idx += 1
+
     if not os.path.exists(file_path):
         return "沒有找到遊戲資料，請先導入遊戲資料"
     
@@ -201,10 +212,11 @@ def get_average(idx, file_path, game, input_text):
         category_map["collection"] = {"type": "500", "list": collection, "limit_list": limit_coll, "fivestar_list": fivestar_coll, "count": collection_count}
 
     elif game == "崩鐵":
-        collab_char, collab_weapon = [], []
-        collab_count = []
-        category_map["collab_char"] = {"type": "21", "list": collab_char, "fivestar_list": collab_char, "limit_list":collab_char, "count": collab_count}
-        category_map["collab_weapon"] = {"type": "22", "list": collab_weapon, "fivestar_list": collab_weapon, "limit_list":collab_weapon, "count": collab_count}
+        collab_char, fivestar_collab_char, limit_collab_char = [], [], []
+        collab_weapon, fivestar_collab_weapon, limit_collab_weapon = [], [], []
+        collab_char_count, collab_weapon_count  = [], []
+        category_map["collab_char"] = {"type": "21", "list": collab_char, "fivestar_list": fivestar_collab_char, "limit_list":limit_collab_char, "count": collab_char_count}
+        category_map["collab_weapon"] = {"type": "22", "list": collab_weapon, "fivestar_list": fivestar_collab_weapon, "limit_list":limit_collab_weapon, "count": collab_weapon_count}
 
     elif game == "絕區零":
         bangboo, fivestar_bangboo = [], []
@@ -214,22 +226,24 @@ def get_average(idx, file_path, game, input_text):
     
 
     def process_item(item, category, standard_items):
-        category["list"].append(item)
-        category["count"].append(item)
+        category["list"].append(item) # 所有抽到的角色/武器
+        category["count"].append(item) # 抽到的角色/武器數量
         if item["rank_type"] == "5":
-            category["count"] = []
-            category["fivestar_list"].append(item)
+            category["fivestar_list"].append(item) # 抽到的五星角色/武器
             if item['name'] not in standard_items and item["gacha_type"] not in ["100", "200", "1", "2"]:
-                category["limit_list"].append(item)
+                category["limit_list"].append(item) # 抽到的限定角色/武器
+
+            category["count"] = []
 
     def process_item_zzz(item, category, standard_items):
         category["list"].append(item)
         category["count"].append(item)
         if item["rank_type"] == "4":
-            category["count"] = []
             category["fivestar_list"].append(item)
             if item['name'] not in standard_items and item["gacha_type"] in ["1", "2", "3", "5"]:
                 category["limit_list"].append(item)
+
+            category["count"] = []
 
     if file_path:
         with open(file_path, "r", encoding="utf8") as file:
@@ -315,7 +329,35 @@ def get_average(idx, file_path, game, input_text):
 
             status_text += f"集錄池({true_collection_count} / 90) - 總抽數：{len(collection)}\n限定數量：{len(limit_coll)}\n平均限定金：{average_limit_collection}\n五星數量：{len(fivestar_coll)}\n平均五星金：{average_collection}\n保底不歪率：{coll_guarantee_rate}\n"
 
-        if game == "絕區零" and idx == 3:
+        if idx == 4 and game == "崩鐵":
+            true_collab_char_count = len(collab_char_count) - 1
+            true_collab_char_count = true_collab_char_count if true_collab_char_count >= 0 else 0
+
+            average_limit_collab_char = round(len(collab_char) / len(limit_collab_char),2) if len(limit_collab_char) > 0 else None
+            average_collab = round(len(collab_char) / len(fivestar_collab_char),2) if len(fivestar_collab_char) > 0 else None
+
+            collab_guarantee_rate = (
+                "100 %" if len(limit_collab_char) == len(fivestar_collab_char)
+                else f"{round(((2 * (len(limit_collab_char) - len(fivestar_collab_char))) / len(limit_collab_char)), 2) * 100} %"
+            )
+
+            status_text += f"聯動角色({true_collab_char_count} / 90) - 總抽數：{len(collab_char)}\n限定數量：{len(limit_collab_char)}\n平均限定金：{average_limit_collab_char}\n五星數量：{len(fivestar_collab_char)}\n平均五星金：{average_collab}\n保底不歪率：{collab_guarantee_rate}\n"
+
+        if idx == 5 and game == "崩鐵":
+            true_collab_weapon_count = len(collab_weapon_count)
+            true_collab_weapon_count = true_collab_weapon_count if true_collab_weapon_count >= 0 else 0
+
+            average_limit_collab_weapon = round(len(collab_weapon) / len(limit_collab_weapon),2) if len(limit_collab_weapon) > 0 else None
+            average_collab = round(len(collab_weapon) / len(fivestar_collab_weapon),2) if len(fivestar_collab_weapon) > 0 else None
+
+            collab_guarantee_rate = (
+                "100 %" if len(limit_collab_weapon) == len(fivestar_collab_weapon)
+                else f"{round(((2 * (len(limit_collab_weapon) - len(fivestar_collab_weapon))) / len(limit_collab_weapon)), 2) * 100} %"
+            )
+
+            status_text += f"聯動武器({true_collab_weapon_count} / 90) - 總抽數：{len(collab_weapon)}\n限定數量：{len(limit_collab_weapon)}\n平均限定金：{average_limit_collab_weapon}\n五星數量：{len(fivestar_collab_weapon)}\n平均五星金：{average_collab}\n保底不歪率：{collab_guarantee_rate}\n"
+
+        if game == "絕區零" and idx == 4:
             average_bangboo = round(len(bangboo) / len(fivestar_bangboo),2) if len(fivestar_bangboo) > 0 else None
 
             true_bangboo_count = len(bangboo_count) - 1

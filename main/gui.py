@@ -1407,9 +1407,12 @@ class MainWindow(QWidget):
 
                 if "collab_char" not in data:
                     data["collab_char"] = []
-
-                if "collab_weapon" not in data:
                     data["collab_weapon"] = []
+
+                    with open(path, "w", encoding="utf8") as file:
+                        json.dump(data, file, indent=4, ensure_ascii=False)
+                    
+                    
 
             elif selected_game == "絕區零":
                 self.GachaTypeButtonList[-1].hide()
