@@ -3,6 +3,7 @@ import json
 import requests
 import time
 import subprocess
+import pyperclip
 import re
 import zipfile
 import shutil
@@ -17,25 +18,24 @@ class HistoryURLNotFound(Exception):
     pass
 
 def fetch_data_by_api(command, path, categories, gacha_size, game):
-    result = subprocess.run(["powershell", "-Command", "Get-Clipboard", command], capture_output=True, text=True).stdout.split("\n")
-    result = result[-3]
+    subprocess.run(
+        ["powershell", "-Command", command],
+        capture_output=True,
+        text=True
+    )
+
+    # 讀取被複製到剪貼簿的內容
+    warp_url = pyperclip.paste()
+
+    if "api/getLdGachaLog" in warp_url:
+        warp_url = warp_url.replace("api/getLdGachaLog", "api/getGachaLog")
+    
     UID = ""
 
-    if not result.startswith("https"):
+    if not warp_url.startswith("https"):
         raise HistoryURLNotFound
 
-    if game == "原神":
-        result += "hk4e_global&size=20&gacha_type=301&end_id="
-
-    elif game == "崩鐵":
-        result += "&size=20&gacha_type=11&end_id="
-
-    elif game == "絕區零":      
-        page_index = result.find("&page")
-        result = result[:page_index]
-        result += "&size=20&real_gacha_type=1&end_id="
-
-    response = requests.get(result)
+    response = requests.get(warp_url)
     resdict = response.json()
 
     account = resdict["data"]["list"][0]["uid"]
@@ -47,8 +47,10 @@ def fetch_data_by_api(command, path, categories, gacha_size, game):
     if os.path.exists(path):
         with open(path, "r", encoding="utf8") as file:
             existed_data = json.load(file)
+
     else:
         existed_data = {key: [] for key in categories.keys()}
+
 
     for key, value in categories.items():
         latest_id = existed_data[key][0]['id'] if key in existed_data and len(existed_data[key]) >= 1 else ""
@@ -62,13 +64,16 @@ def fetch_data_by_api(command, path, categories, gacha_size, game):
         data[key] = []
 
         if game == "原神":
-            url = result.replace("gacha_type=301", f"gacha_type={value}")
+            url = warp_url.replace("gacha_type=301", f"gacha_type={value}")
 
         elif game == "崩鐵":
-            url = result.replace("gacha_type=11", f"gacha_type={value}")
+            url = warp_url.replace("gacha_type=11", f"gacha_type={value}")
+
+            if key in ["collab_char", "collab_weapon"]:
+                url = url.replace("api/getGachaLog", "api/getLdGachaLog")
 
         elif game == "絕區零":
-            url = result.replace("gacha_type=1", f"gacha_type={value}")
+            url = warp_url.replace("gacha_type=1", f"gacha_type={value}")
         
         print(f"正在讀取 {key} 的資料")
 
@@ -119,7 +124,7 @@ def fetch_data_by_api(command, path, categories, gacha_size, game):
     
 
 def get_GSdata_by_api():
-    command = "Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex \"&{$((New-Object System.Net.WebClient).DownloadString('https://gist.github.com/MadeBaruna/1d75c1d37d19eca71591ec8a31178235/raw/getlink.ps1'))} global\""
+    command = "iwr -useb stardb.gg/wish | iex"
     path = f"{data_path}/user_data/GenshinImpact.json"
     categories = {
         "novice": "100",
@@ -129,18 +134,20 @@ def get_GSdata_by_api():
         "collection": "500"
     }
     
-    fetch_data_by_api(command, path, categories, gacha_size=20, game="原神")
+    fetch_data_by_api(command, path, categories, gacha_size=1000, game="原神")
 
 def get_HSRdata_by_api():
-    command = "[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; Invoke-Expression (New-Object Net.WebClient).DownloadString(\"https://gist.githubusercontent.com/Star-Rail-Station/2512df54c4f35d399cc9abbde665e8f0/raw/get_warp_link_os.ps1?cachebust=srs\")"
+    command = "iwr -useb stardb.gg/warp | iex"
     path = f"{data_path}/user_data/Honkai_StarRail.json"
     categories = {
         "novice": "2",
         "standard": "1",
         "characters": "11",
         "weapons": "12",
+        "collab_char":"21",
+        "collab_weapon":"22"
     }
-    fetch_data_by_api(command, path, categories, gacha_size=20, game="崩鐵")
+    fetch_data_by_api(command, path, categories, gacha_size=1000, game="崩鐵")
 
 def get_ZZZdata_by_api():
     command = "[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; Invoke-Expression (New-Object Net.WebClient).DownloadString(\"https://zzz.rng.moe/scripts/get_signal_link_os.ps1\")"
@@ -153,7 +160,7 @@ def get_ZZZdata_by_api():
         "bangboo": "5"
     }
 
-    fetch_data_by_api(command, path, category, gacha_size=20, game="絕區零")
+    fetch_data_by_api(command, path, category, gacha_size=1000, game="絕區零")
 
 def get_average(idx, file_path, game, input_text):
     if not os.path.exists(file_path):
@@ -193,10 +200,18 @@ def get_average(idx, file_path, game, input_text):
         collection_count = []
         category_map["collection"] = {"type": "500", "list": collection, "limit_list": limit_coll, "fivestar_list": fivestar_coll, "count": collection_count}
 
+    elif game == "崩鐵":
+        collab_char, collab_weapon = [], []
+        collab_count = []
+        category_map["collab_char"] = {"type": "21", "list": collab_char, "fivestar_list": collab_char, "limit_list":collab_char, "count": collab_count}
+        category_map["collab_weapon"] = {"type": "22", "list": collab_weapon, "fivestar_list": collab_weapon, "limit_list":collab_weapon, "count": collab_count}
+
     elif game == "絕區零":
         bangboo, fivestar_bangboo = [], []
         bangboo_count = []
         category_map["bangboo"] = {"type": "5", "list": bangboo, "fivestar_list": fivestar_bangboo, "limit_list":[], "count": bangboo_count}
+
+    
 
     def process_item(item, category, standard_items):
         category["list"].append(item)
@@ -228,12 +243,12 @@ def get_average(idx, file_path, game, input_text):
             if game == "原神" and (len(data[key]) > 1 and data[key][0]['gacha_type'] not in ["100", "200", "301", "302", "400", "500"]):
                 return "導入錯誤的遊戲資料"
             
-            elif game == "崩鐵" and (len(data[key]) > 1 and data[key][0]['gacha_type'] not in ["1", "2", "11", "12"]):
+            elif game == "崩鐵" and (len(data[key]) > 1 and data[key][0]['gacha_type'] not in ["1", "2", "11", "12", "21", "22"]):
                 return "導入錯誤的遊戲資料"
             
             elif game == "絕區零" and (len(data[key]) > 1 and data[key][0]['gacha_type'] not in ["1", "2", "3", "5"]):
                 return "導入錯誤的遊戲資料"
-            
+
         for key, value in data.items():
             if key == "info":
                 continue
@@ -349,6 +364,10 @@ def compare_input_data(system_path, input_data, game):
     if game == "原神":
         keys.append("collection")
 
+    if game == "崩鐵":
+        keys.append("collab_char")
+        keys.append("collab_weapon")
+
     if game == "絕區零":
         keys.remove("novice")
         keys.append("bangboo")
@@ -424,7 +443,7 @@ def extract_data(game, input_path):
     if game == "原神" and input_data["list"][0]["gacha_type"] not in ["100", "200", "301", "302", "400", "500"]:
         return "錯誤的遊戲資料"
     
-    elif game == "崩鐵" and input_data["list"][0]["gacha_type"] not in ["1", "2", "11", "12"]:
+    elif game == "崩鐵" and input_data["list"][0]["gacha_type"] not in ["1", "2", "11", "12", "21", "22"]:
         return "錯誤的遊戲資料"
     
     elif game == "絕區零" and input_data["list"][0]["gacha_type"] not in ["1", "2", "3", "5"]:
@@ -457,18 +476,25 @@ def extract_data(game, input_path):
             }
 
     elif game == "崩鐵":
+        collab_char = []
+        collab_weapon = []
+
         gacha_mapping = {
             "1": standard,
             "2": novice,
             "11": character,
             "12": weapon,
+            "21": collab_char,
+            "22": collab_weapon
         }
 
         keys = {
             "2":"novice",
             "1":"standard", 
             "11":"characters", 
-            "12":"weapons"
+            "12":"weapons",
+            "21":"collab_char",
+            "22":"collab_weapon"
             }
         
     elif game == "絕區零":

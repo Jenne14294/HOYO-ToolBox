@@ -302,8 +302,8 @@ class MainWindow(QWidget):
         button_layout = QHBoxLayout()
         self.GachaTypeButtonList = []
 
-        for i in range(5):
-            btn = QPushButton(f"按鈕 {i+1}")
+        for i in range(6):
+            btn = QPushButton(f"按鈕 {i + 1}")
             btn.clicked.connect(lambda checked, idx=i: self.show_game_options(idx))
             button_layout.addWidget(btn)
             self.GachaTypeButtonList.append(btn)
@@ -1383,7 +1383,7 @@ class MainWindow(QWidget):
             path = f"{data_path}/user_data/GenshinImpact_{accountID}.json"
 
         elif selected_game == "崩鐵":
-            options = ["資訊", "新手", "常駐", "角色", "光錐"]
+            options = ["資訊", "新手", "常駐", "角色", "光錐", "聯動角色", "聯動武器"]
             path = f"{data_path}/user_data/Honkai_StarRail_{accountID}.json"
 
         elif selected_game == "絕區零":
@@ -1398,11 +1398,22 @@ class MainWindow(QWidget):
             for i in range(len(options) - 1):
                 self.GachaTypeButtonList[i].setText(options[i + 1])
 
-            if selected_game != "原神":
+            if selected_game == "原神":
                 self.GachaTypeButtonList[-1].hide()
                 
-            else:
+            elif selected_game == "崩鐵":
                 self.GachaTypeButtonList[-1].show()
+                self.GachaTypeButtonList[-2].show()
+
+                if "collab_char" not in data:
+                    data["collab_char"] = []
+
+                if "collab_weapon" not in data:
+                    data["collab_weapon"] = []
+
+            elif selected_game == "絕區零":
+                self.GachaTypeButtonList[-1].hide()
+                self.GachaTypeButtonList[-2].hide()
 
 
             counter = 0
