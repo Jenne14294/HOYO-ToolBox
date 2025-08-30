@@ -36,7 +36,7 @@ if not os.path.exists("./config.ini"):
     config.add_section('General')
     config.set('General', 'Author', 'Jenne14294')
     config.set('General', 'AppName', 'HOYO ToolBox')
-    config.set('General', 'version', '1.16')
+    config.set('General', 'version', '1.17')
 
     config.add_section('Settings')
     config.set('Settings', 'Language', 'zh-TW')
