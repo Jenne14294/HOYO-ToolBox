@@ -2,9 +2,11 @@ import os
 import json
 import configparser
 import asyncio
+import requests
 import sys
 import subprocess
 import time
+import concurrent.futures
 
 import functions # 引入我們的大腦！
 import GenshinAPI
@@ -23,6 +25,12 @@ from PyQt5.QtGui import QFont, QIcon, QPixmap, QFontDatabase
 local_folder_path = os.environ.get("LOCALAPPDATA")
 data_path = os.path.join(local_folder_path, "HoYo ToolBox")  # pyright: ignore[reportArgumentType, reportCallIssue]
 config = configparser.ConfigParser()
+
+IMAGE_PATH_MAP = { "原神": {}, "崩鐵": {}, "絕區零": {} }
+IMAGE_BYTES_CACHE = {}
+
+LOC_CACHE_PATH = "./assets/data/loc_genshin.json"
+ETAG_CACHE_PATH = "./assets/data/loc_genshin.etag"
 
 os.makedirs(f"{data_path}/user_data",exist_ok=True)
 os.makedirs(f"{data_path}/diary",exist_ok=True)
@@ -59,6 +67,18 @@ def ask_update():
     reply = QMessageBox.question(QWidget(), "HOYO ToolBox", "發現新版本，是否要更新到最新版本？",
                                  QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
     return reply == QMessageBox.Yes
+
+
+def get_avatar_bytes_dynamically(game, item_id, name):
+    """瞬間查表並下載圖片 (不存硬碟)"""
+    search_key = name if game == "原神" else str(item_id)
+    icon_suffix = IMAGE_PATH_MAP.get(game, {}).get(search_key)
+    
+    if not icon_suffix: return None
+
+    img_url = f"https://enka.network{icon_suffix}"
+    if img_url in IMAGE_BYTES_CACHE: return IMAGE_BYTES_CACHE[img_url]
+    return None
 
 # ==============================
 # UI 輔助類別 (流式佈局與卡片)
@@ -121,21 +141,40 @@ class FlowLayout(QLayout):
 
 class RecordItem(QFrame):
     """單筆抽卡紀錄卡片 (支援懸停時間與歪標記)"""
-    def __init__(self, name, pity, time_str, is_wry=False):
+    def __init__(self, name, pity, time_str, is_wry=False, image_bytes=None):
         super().__init__()
         self.name = name
         self.pity = pity
         self.time_str = time_str
         self.is_wry = is_wry
+        self.image_bytes = image_bytes # 接收傳進來的圖片資料
         self.init_ui()
 
     def init_ui(self):
         self.setFrameShape(QFrame.StyledPanel)
-        self.setFixedSize(240, 70) 
+        
+        # 💡 修正 1：把寬度從 240 加寬到 340，才放得下你放大後的字體和頭像！
+        self.setFixedSize(480, 100) 
         self.setToolTip(f"抽取時間：\n{self.time_str}")
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(15, 5, 15, 5)
+        layout.setSpacing(10) # 加上元件間距，才不會黏在一起
+
+        self.avatar_label = QLabel()
+        self.avatar_label.setFixedSize(50, 50)
+        
+        # 【關鍵】：把收到的 Bytes 畫出來！
+        if self.image_bytes:
+            pixmap = QPixmap()
+            pixmap.loadFromData(self.image_bytes) 
+            scaled_pixmap = pixmap.scaled(50, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.avatar_label.setPixmap(scaled_pixmap)
+        else:
+            self.avatar_label.setStyleSheet("background-color: #555; border-radius: 5px;")
+            
+        self.avatar_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.avatar_label)
 
         self.name_label = QLabel(self.name)
         font_id = QFontDatabase.addApplicationFont("./assets/font.ttf")
@@ -150,7 +189,8 @@ class RecordItem(QFrame):
             self.wry_label = QLabel("歪")
             self.wry_label.setAlignment(Qt.AlignCenter)
             self.wry_label.setFixedSize(40, 40)
-            self.wry_label.setStyleSheet("background-color: #D32F2F; color: white; border-radius: 14px; font-weight: bold; font-size: 20px;")
+            # 💡 修正 2：大小為 40x40，border-radius 要設為一半 (20px) 才會是圓形
+            self.wry_label.setStyleSheet("background-color: #D32F2F; color: white; border-radius: 20px; font-weight: bold; font-size: 20px;")
             layout.addWidget(self.wry_label)
 
         layout.addStretch() 
@@ -167,6 +207,14 @@ class RecordItem(QFrame):
             RecordItem {{ border: 2px solid #222; border-radius: 8px; background-color: {color}; }}
             QLabel {{ color: white; border: none; background: transparent; }}
         """)
+
+    def set_avatar(self, image_bytes):
+        if image_bytes:
+            pixmap = QPixmap()
+            pixmap.loadFromData(image_bytes) 
+            scaled_pixmap = pixmap.scaled(50, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.avatar_label.setPixmap(scaled_pixmap)
+            self.avatar_label.setStyleSheet("background: transparent;") # 圖片載入後，把灰底去掉
 
 class InputDialog(QDialog):
     """手動輸入對話框"""
@@ -215,6 +263,177 @@ class FetchDataThread(QThread):
         except Exception as e:
             self.update_signal.emit(f"讀取失敗，請先在遊戲裡打開抽卡歷史紀錄")
 
+class AvatarFetchThread(QThread):
+    # 定義一個訊號：當圖片抓好時，把「卡片編號」和「圖片資料」送回給主畫面
+    avatar_fetched = pyqtSignal(int, bytes)
+
+    def __init__(self, fetch_tasks):
+        super().__init__()
+        self.fetch_tasks = fetch_tasks 
+        self.is_running = True
+
+    def run(self):
+        for task in self.fetch_tasks:
+            if not self.is_running:
+                break 
+                
+            card_id = task['id']
+            game = task['game']
+            item_id = task['item_id']
+            name = task['name']
+
+            # 💡 把 banner_name 拿掉，直接傳這三個就好
+            image_bytes = get_avatar_bytes_dynamically(game, item_id, name)
+            
+            if image_bytes and self.is_running:
+                self.avatar_fetched.emit(card_id, image_bytes)
+
+    def stop(self):
+        self.is_running = False
+
+class PreloadDictionaryThread(QThread):
+    preload_finished = pyqtSignal() 
+
+    def run(self):
+        print("🚀 [背景作業] 1. 正在使用多執行緒平行載入 JSON 字典...")
+        
+        # 建立共用連線池，加速所有 API 請求
+        session = requests.Session()
+        session.headers.update({"User-Agent": "Mozilla/5.0"})
+
+        # ====================================================
+        # 將三款遊戲的抓取邏輯拆分成獨立的函式
+        # ====================================================
+        def fetch_hsr():
+            try:
+                hsr_c = session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/hsr/avatars.json", timeout=10).json()
+                for k, v in hsr_c.items(): IMAGE_PATH_MAP["崩鐵"][str(k)] = f"{v.get('AvatarSideIconPath', '')}"
+                hsr_w = session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/hsr/weapons.json", timeout=10).json()
+                for k, v in hsr_w.items(): IMAGE_PATH_MAP["崩鐵"][str(k)] = f"{v.get('ImagePath', '')}"
+            except: pass
+
+        def fetch_zzz():
+            try:
+                zzz_c = session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/zzz/avatars.json", timeout=10).json()
+                for k, v in zzz_c.items(): IMAGE_PATH_MAP["絕區零"][str(k)] = f"{v.get('CircleIcon', '')}"
+                zzz_w = session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/zzz/weapons.json", timeout=10).json()
+                for k, v in zzz_w.items(): IMAGE_PATH_MAP["絕區零"][str(k)] = f"{v.get('ImagePath', '')}"
+            except: pass
+
+        def fetch_genshin():
+            try:
+                # 💡 極限優化：直接請求 Amber API 的繁體中文資料，體積極小，直接包含名字與圖片 Key
+                
+                # 1. 抓取角色 (回傳格式直接就是 名字: 圖片代號)
+                gs_c_res = session.get("https://api.allorigins.win/raw?url=https://api.ambr.top/v2/zh-TW/avatar", timeout=10).json()
+                for v in gs_c_res.get("data", {}).get("items", {}).values():
+                    char_name = v.get("name")
+                    if char_name:
+                        # 這裡拿到的 icon 是 "UI_AvatarIcon_Furina"，我們把它補上 .png
+                        IMAGE_PATH_MAP["原神"][char_name] = f"{v.get('icon')}.png"
+                
+                # 2. 抓取武器
+                gs_w_res = session.get("https://api.allorigins.win/raw?url=https://api.ambr.top/v2/zh-TW/weapon", timeout=10).json()
+                for v in gs_w_res.get("data", {}).get("items", {}).values():
+                    weapon_name = v.get("name")
+                    if weapon_name:
+                        IMAGE_PATH_MAP["原神"][weapon_name] = f"{v.get('icon')}.png"
+                        
+            except Exception as e:
+                print(f"❌ 原神字典預載失敗: {e}")
+
+        # ====================================================
+        # 💡 召喚 3 個分身，同時執行這三個任務！
+        # ====================================================
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            # 派發任務
+            futures = [
+                executor.submit(fetch_hsr),
+                executor.submit(fetch_zzz),
+                executor.submit(fetch_genshin)
+            ]
+            # 等待這 3 個分身都把工作做完
+            concurrent.futures.wait(futures)
+
+        print("✅ [背景作業] 所有 JSON 字典平行載入完成！")
+
+        # ====================================================
+        # 💡 關鍵進化：分析本機抽卡紀錄，提取專屬「高星級」名單
+        # ====================================================
+        print("🚀 [背景作業] 2. 正在分析抽卡紀錄，提取已擁有的高星級名單...")
+        pulled_items = set() 
+        user_data_dir = f"{data_path}/user_data" # 這裡使用你的資料夾路徑，確保與主程式一致
+        
+        if os.path.exists(user_data_dir):
+            for filename in os.listdir(user_data_dir):
+                if not filename.endswith(".json"): continue
+                
+                game = "原神" if "GenshinImpact" in filename else "崩鐵" if "Honkai_StarRail" in filename else "絕區零" if "ZenlessZoneZero" in filename else ""
+                if not game: continue
+
+                filepath = os.path.join(user_data_dir, filename)
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        
+                    for banner_key, pulls in data.items():
+                        if banner_key == "info": continue 
+                        for pull in pulls:
+                            rank = str(pull.get("rank_type", "3"))
+                            # 原神/崩鐵為5，絕區零為4
+                            is_high_rank = (game != "絕區零" and rank == '5') or (game == "絕區零" and rank == "4")
+                            if is_high_rank:
+                                item_id = str(pull.get('item_id', ''))
+                                name = pull.get('name', '')
+                                pulled_items.add((game, item_id, name))
+                except: pass
+
+        print(f"🎯 [背景作業] 分析完畢！共有 {len(pulled_items)} 個專屬高星級頭像需要下載。")
+
+        # ====================================================
+        # 💡 關鍵 3：只針對這個清單下載圖片！
+        # ====================================================
+        print("🚀 [背景作業] 3. 開始使用多執行緒平行下載圖片...")
+        
+        # 建立一個 Session 通道，所有請求共用同一個連線，省去握手時間
+        session = requests.Session()
+        session.headers.update({"User-Agent": "Mozilla/5.0"})
+
+        # 定義一個「單張圖片下載」的專屬任務函數
+        def fetch_single_image(item):
+            game, item_id, name = item
+            search_key = name if game == "原神" else str(item_id)
+            icon_suffix = IMAGE_PATH_MAP.get(game, {}).get(search_key)
+            
+            if not icon_suffix: return
+                
+            if not icon_suffix.startswith("/"): icon_suffix = "/" + icon_suffix
+            if not icon_suffix.startswith("/ui/"): icon_suffix = "/ui" + icon_suffix
+                
+            img_url = f"https://enka.network{icon_suffix}"
+            if not img_url.endswith(".png"): img_url += ".png"
+
+            if img_url not in IMAGE_BYTES_CACHE:
+                try:
+                    # 使用 session.get 取代 requests.get
+                    response = session.get(img_url, timeout=5)
+                    if response.status_code == 200:
+                        IMAGE_BYTES_CACHE[img_url] = response.content
+                except:
+                    pass
+                # 這裡的 sleep 可以縮短到極限 0.01 秒，因為我們有用連線池
+                time.sleep(0.01) 
+
+        # 🚀 召喚 5 個分身 (Worker) 同時去執行下載任務！
+        # 注意：max_workers 不要設太大 (建議 5~8)，以免被 Enka 防火牆當成惡意攻擊而鎖 IP
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            executor.map(fetch_single_image, pulled_items)
+            
+        print("🎉 [背景作業] 專屬高星級圖片已平行快取完畢！")
+        
+        # 通知主畫面可以放行了！
+        self.preload_finished.emit()
+
 # ==============================
 # 主視窗 (UI 結合 邏輯)
 # ==============================
@@ -222,10 +441,15 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("HOYO ToolBox")
-        self.resize(1000, 750)
+        self.resize(750, 600)
         self.init_ui()
         self.apply_global_style()
         self.change_game()
+
+        self.summary_label.setText("正在背景載入圖片資料庫，請稍候...") # 溫馨提示
+        self.preload_thread = PreloadDictionaryThread()
+        self.preload_thread.preload_finished.connect(self.on_dictionary_ready)
+        self.preload_thread.start()
 
     def init_ui(self):
         main_layout = QHBoxLayout(self)
@@ -330,6 +554,9 @@ class MainWindow(QWidget):
     # 核心邏輯區
     # ----------------------------------------
 
+    def on_dictionary_ready(self):
+        self.summary_label.setText("圖庫載入完成！可以開始查詢紀錄囉！")
+
     def change_game(self):
         sender = self.sender()
         if sender and hasattr(sender, 'isChecked') and not sender.isChecked():
@@ -412,6 +639,8 @@ class MainWindow(QWidget):
 
                 for items in old_to_new_data:
                     counter += 1
+                    
+                    item_id = str(items.get('item_id', ''))
                     rank_type = str(items.get('rank_type', '3'))
                     name = items.get('name', '未知')
                     time_str = items.get('time', '未知時間')
@@ -419,16 +648,25 @@ class MainWindow(QWidget):
                     is_high_rank = (selected_game != "絕區零" and rank_type == '5') or (selected_game == "絕區零" and rank_type == "4")
                     
                     if is_high_rank:
-                        # 呼叫 functions.py 來判斷這是不是常駐大獎
+                        # --- 歪的判斷邏輯開始 ---
                         is_standard = functions.check_is_standard(selected_game, banner_name, name)
                         
-                        # 如果上一隻是常駐，且這池不是新手/常駐池，這隻就是「歪」的大保底
+                        # 【新規則】：2025/04/26 以後，特定角色強制視為「歪」
+                        # 只在限定池（排除新手、常駐）生效
+                        if banner_name not in ["新手", "常駐"]:
+                            # 2025/04/26 字串比較在標準 ISO 時間格式下是有效的
+                            if time_str >= "2025-04-26 00:00:00" and name in ["符玄", "刃", "希兒"]:
+                                is_standard = True
+                        
+                        # 決定這張卡片要不要顯示「歪」標籤
                         is_wry = last_was_standard if banner_name not in ["新手", "常駐"] else False
+                        # --- 歪的判斷邏輯結束 ---
 
-                        item_widget = RecordItem(name, counter, time_str, is_wry)
+                        image_bytes = get_avatar_bytes_dynamically(selected_game, item_id, name)
+                        item_widget = RecordItem(name, counter, time_str, is_wry, image_bytes)
                         cards_to_show.append(item_widget)
 
-                        # 更新記憶狀態給下一隻用
+                        # 更新「上一抽是否為常駐」的狀態給下一張卡片用
                         last_was_standard = is_standard if banner_name not in ["新手", "常駐"] else False
                         counter = 0
 
