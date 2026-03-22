@@ -1,0 +1,7 @@
+genshin==1.7.17
+isodate==0.7.2
+pyperclip==1.9.0
+PyQt5==5.15.11
+PyQt5_sip==12.15.0
+python_dateutil==2.9.0.post0
+Requests==2.32.5
