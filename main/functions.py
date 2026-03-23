@@ -135,20 +135,47 @@ def fetch_data_by_api(command, game):
     logging.info("✅ 成功連接並獲取初始資料！")
     return resdict, warp_url
 
-def data_to_json(resdict, path, categories, game, warp_url):
+def data_to_json(resdict, path, categories, game, warp_url, log_signal=None):
+    def log_msg(msg):
+        logging.info(msg)
+        if log_signal:
+            log_signal.emit(msg)
+
     UID = ""
     account = resdict["data"]["list"][0]["uid"]
-    logging.info(f"成功獲取 UID: {account}")
+    log_msg(f"成功獲取 UID: {account}")
+
+    # ==========================================
+    # 💡 新增：建立 Key 對應中文 Value 的翻譯字典
+    # ==========================================
+    name_map = {
+        "novice": "新手",
+        "standard": "常駐",
+        "characters": "角色",
+        "weapons": "武器",  # 預設為武器，下方會根據遊戲動態修改
+        "bangboo": "邦布",
+        "collection": "集錄",
+        "collab_char": "聯動角色",
+        "collab_weapon": "聯動武器",
+        "collab_Weapon": "聯動武器" # 防呆大小寫
+    }
+    
+    # 針對不同遊戲，將 weapon 替換成專屬稱呼
+    if game == "崩鐵":
+        name_map["weapons"] = "光錐"
+    elif game == "絕區零":
+        name_map["weapons"] = "音擎"
+    # ==========================================
 
     data = {}
     path = path[:-5] + f"_{account}" + ".json"
 
     if os.path.exists(path):
-        logging.info(f"偵測到本地歷史紀錄檔案，將進行增量更新: {path}")
+        log_msg(f"偵測到本地歷史紀錄檔案，將進行增量更新...")
         with open(path, "r", encoding="utf8") as file:
             existed_data = json.load(file)
     else:
-        logging.info("未偵測到本地歷史紀錄，將建立全新資料檔。")
+        log_msg("未偵測到本地歷史紀錄，將建立全新資料檔。")
         existed_data = {key: [] for key in categories.keys()}
 
     for key, value in categories.items():
@@ -156,7 +183,7 @@ def data_to_json(resdict, path, categories, game, warp_url):
 
         if "info" not in data:
             data["info"] = {
-                "export_app":"HOYO ToolBox",
+                "export_app": "HOYO ToolBox",
                 "timezone": resdict["data"]["region_time_zone"] if "region_time_zone" in resdict["data"] else 0
             }
 
@@ -171,7 +198,11 @@ def data_to_json(resdict, path, categories, game, warp_url):
         elif game == "絕區零":
             url = warp_url.replace("gacha_type=1", f"gacha_type={value}")
         
-        logging.info(f"正在讀取 [{key}] 的資料...")
+        # 💡 使用翻譯字典，如果找不到對應的中文，就退回原本的英文 key
+        zh_name = name_map.get(key, key)
+        
+        # 這裡的 Log 就會變成全中文了！
+        log_msg(f"正在讀取 [{zh_name}] 的資料...")
 
         page_count = 0
         while True:
@@ -210,7 +241,9 @@ def data_to_json(resdict, path, categories, game, warp_url):
             time.sleep(0.5)
 
         data[key].extend(existed_data[key])
-        logging.info(f"[{key}] 讀取完成! 本次共抓取了 {page_count} 頁新資料。")
+        
+        # 💡 結束的 Log 也是全中文！
+        log_msg(f"[{zh_name}] 讀取完成! 本次共抓取了 {page_count} 頁新資料。")
 
     if game != "原神":
         data["info"]["version"] = "v4.0"
@@ -218,28 +251,28 @@ def data_to_json(resdict, path, categories, game, warp_url):
     with open(path, "w", encoding="utf8") as file:
         json.dump(data, file, indent=4, ensure_ascii=False)
         
-    logging.info(f"🎉 所有操作完成！資料已成功寫入: {path}")
+    log_msg(f"🎉 {game} 所有抽卡紀錄已成功寫入儲存！")
 
-def get_GSdata_by_api():
+def get_GSdata_by_api(log_signal=None):
     command = "$PSDefaultParameterValues['*:Encoding'] = 'utf8'; iwr -useb stardb.gg/wish | iex"
     path = f"{data_path}/user_data/GenshinImpact.json"
     categories = {"novice": "100", "standard": "200", "characters": "301", "weapons": "302", "collection": "500"}
     resdict, warp_url = fetch_data_by_api(command, game="原神")
-    if resdict: data_to_json(resdict, path, categories, game="原神", warp_url=warp_url)
+    if resdict: data_to_json(resdict, path, categories, "原神", warp_url, log_signal=log_signal)
 
-def get_HSRdata_by_api():
+def get_HSRdata_by_api(log_signal=None):
     command = "$PSDefaultParameterValues['*:Encoding'] = 'utf8'; iwr -useb stardb.gg/warp | iex"
     path = f"{data_path}/user_data/Honkai_StarRail.json"
     categories = {"novice": "2", "standard": "1", "characters": "11", "weapons": "12", "collab_char":"21", "collab_weapon":"22"}
     resdict, warp_url = fetch_data_by_api(command, game="崩鐵")
-    if resdict: data_to_json(resdict, path, categories, game="崩鐵", warp_url=warp_url)
+    if resdict: data_to_json(resdict, path, categories, "崩鐵", warp_url, log_signal=log_signal)
 
-def get_ZZZdata_by_api():
+def get_ZZZdata_by_api(log_signal=None):
     command = "$PSDefaultParameterValues['*:Encoding'] = 'utf8'; iwr -useb stardb.gg/signal | iex"
     path = f"{data_path}/user_data/ZenlessZoneZero.json"
     categories = {"standard": "1", "characters": "2", "weapons": "3", "bangboo": "5"}
     resdict, warp_url = fetch_data_by_api(command,  game="絕區零")
-    if resdict: data_to_json(resdict, path, categories, game="絕區零", warp_url=warp_url)
+    if resdict: data_to_json(resdict, path, categories, "絕區零", warp_url, log_signal=log_signal)
 
 def get_average(idx, file_path, game, input_text):
     if game == "絕區零":
@@ -324,22 +357,31 @@ def get_average(idx, file_path, game, input_text):
                     else:
                         if item["gacha_type"] == category_type: process_item_zzz(item, details, standard_items)
 
-        average_limit_character = round(len(characters) / len(limit_char), 2) if len(limit_char) > 0 else None
-        average_limit_weapon = round(len(weapons) / len(limit_weapon), 2) if len(limit_weapon) > 0 else None
-
-        average_novice = round((len(novice) / len(fivestar_novice)), 2) if len(fivestar_novice) > 0 else None
-        average_character = round(len(characters) / len(fivestar_char), 2) if len(fivestar_char) > 0 else None
-        average_weapon = round(len(weapons) / len(fivestar_weapon), 2) if len(fivestar_weapon) > 0 else None
+        true_character_count = len(character_count) - 1 if len(fivestar_char) > 0 else len(character_count)
+        true_character_count = max(0, true_character_count)
         
-        true_character_count = len(character_count) - 1
-        true_character_count = true_character_count if true_character_count >= 0 else 0
-        true_weapon_count = len(weapon_count) - 1
-        true_weapon_count = true_weapon_count if true_weapon_count >= 0 else 0
-        true_standard_count = len(standard_count) - 1
-        true_standard_count = true_standard_count if true_standard_count >= 0 else 0
-        true_novice_count = len(novice_count) - 1
-        true_novice_count = true_novice_count if true_novice_count >= 0 else 0
+        true_weapon_count = len(weapon_count) - 1 if len(fivestar_weapon) > 0 else len(weapon_count)
+        true_weapon_count = max(0, true_weapon_count)
+        
+        # 💡 假設常駐池的五星陣列叫做 fivestar_standard，若你的變數名不同請自行替換
+        true_standard_count = len(standard_count) - 1 if len(fivestar_standard) > 0 else len(standard_count)
+        true_standard_count = max(0, true_standard_count)
+        
+        true_novice_count = len(novice_count) - 1 if len(fivestar_novice) > 0 else len(novice_count)
+        true_novice_count = max(0, true_novice_count)
 
+        # ==========================================================
+        # 2. 計算平均出金（將總抽數扣除「已墊抽數」，只計算已經出金的區間）
+        # ==========================================================
+        average_limit_character = round((len(characters) - true_character_count) / len(limit_char), 2) if len(limit_char) > 0 else None
+        average_character = round((len(characters) - true_character_count) / len(fivestar_char), 2) if len(fivestar_char) > 0 else None
+
+        average_limit_weapon = round((len(weapons) - true_weapon_count) / len(limit_weapon), 2) if len(limit_weapon) > 0 else None
+        average_weapon = round((len(weapons) - true_weapon_count) / len(fivestar_weapon), 2) if len(fivestar_weapon) > 0 else None
+
+        average_novice = round((len(novice) - true_novice_count) / len(fivestar_novice), 2) if len(fivestar_novice) > 0 else None
+
+        # 3. 保底不歪率維持原本的計算公式
         char_guarantee_rate = f"{round(((2 * len(limit_char) - len(fivestar_char)) / len(limit_char)) * 100, 2)} %" if len(fivestar_char) > 0 else None
         char_guarantee_rate = None if not char_guarantee_rate else "0.0 %" if "-" in char_guarantee_rate else char_guarantee_rate
 
@@ -352,31 +394,43 @@ def get_average(idx, file_path, game, input_text):
         elif idx == 3:
             status_text += f"武器池({true_weapon_count} / 80) - 總抽數：{len(weapons)}\n限定武器數：{len(limit_weapon)}\n平均限定金：{average_limit_weapon}\n五星武器數：{len(fivestar_weapon)}\n平均五星金：{average_weapon}\n保底不歪率：{weapon_guarantee_rate}\n"
 
+        # ==========================================================
+        # 4. 特殊卡池同樣要先精準算出墊池數，再計算平均
+        # ==========================================================
         if game == "原神" and idx == 4:
-            average_limit_collection = round(len(collection) / len(limit_coll),2) if len(limit_coll) > 0 else None
-            average_collection = round(len(collection) / len(fivestar_coll),2) if len(fivestar_coll) > 0 else None 
-            true_collection_count = len(collection_count) - 1 if len(collection_count) - 1 >= 0 else 0
+            true_collection_count = len(collection_count) - 1 if len(fivestar_coll) > 0 else len(collection_count)
+            true_collection_count = max(0, true_collection_count)
+            
+            average_limit_collection = round((len(collection) - true_collection_count) / len(limit_coll), 2) if len(limit_coll) > 0 else None
+            average_collection = round((len(collection) - true_collection_count) / len(fivestar_coll), 2) if len(fivestar_coll) > 0 else None 
+            
             coll_guarantee_rate = f"{round(((2 * (len(limit_coll) - len(fivestar_coll))) / len(limit_coll)), 2) * 100} %" if len(fivestar_coll) > 0 else None
             coll_guarantee_rate = None if not coll_guarantee_rate else "0.0 %" if "-" in coll_guarantee_rate else coll_guarantee_rate
             status_text += f"集錄池({true_collection_count} / 90) - 總抽數：{len(collection)}\n限定數量：{len(limit_coll)}\n平均限定金：{average_limit_collection}\n五星數量：{len(fivestar_coll)}\n平均五星金：{average_collection}\n保底不歪率：{coll_guarantee_rate}\n"
 
         if idx == 4 and game == "崩鐵":
-            true_collab_char_count = len(collab_char_count) - 1 if len(collab_char_count) - 1 >= 0 else 0
-            average_limit_collab_char = round(len(collab_char) / len(limit_collab_char),2) if len(limit_collab_char) > 0 else None
-            average_collab = round(len(collab_char) / len(fivestar_collab_char),2) if len(fivestar_collab_char) > 0 else None
+            true_collab_char_count = len(collab_char_count) - 1 if len(fivestar_collab_char) > 0 else len(collab_char_count)
+            true_collab_char_count = max(0, true_collab_char_count)
+            
+            average_limit_collab_char = round((len(collab_char) - true_collab_char_count) / len(limit_collab_char), 2) if len(limit_collab_char) > 0 else None
+            average_collab = round((len(collab_char) - true_collab_char_count) / len(fivestar_collab_char), 2) if len(fivestar_collab_char) > 0 else None
             collab_guarantee_rate = "100 %" if len(limit_collab_char) == len(fivestar_collab_char) else f"{round(((2 * (len(limit_collab_char) - len(fivestar_collab_char))) / len(limit_collab_char)), 2) * 100} %"
             status_text += f"聯動角色({true_collab_char_count} / 90) - 總抽數：{len(collab_char)}\n限定數量：{len(limit_collab_char)}\n平均限定金：{average_limit_collab_char}\n五星數量：{len(fivestar_collab_char)}\n平均五星金：{average_collab}\n保底不歪率：{collab_guarantee_rate}\n"
 
         if idx == 5 and game == "崩鐵":
-            true_collab_weapon_count = len(collab_weapon_count) if len(collab_weapon_count) >= 0 else 0
-            average_limit_collab_weapon = round(len(collab_weapon) / len(limit_collab_weapon),2) if len(limit_collab_weapon) > 0 else None
-            average_collab = round(len(collab_weapon) / len(fivestar_collab_weapon),2) if len(fivestar_collab_weapon) > 0 else None
+            true_collab_weapon_count = len(collab_weapon_count) - 1 if len(fivestar_collab_weapon) > 0 else len(collab_weapon_count)
+            true_collab_weapon_count = max(0, true_collab_weapon_count)
+            
+            average_limit_collab_weapon = round((len(collab_weapon) - true_collab_weapon_count) / len(limit_collab_weapon), 2) if len(limit_collab_weapon) > 0 else None
+            average_collab = round((len(collab_weapon) - true_collab_weapon_count) / len(fivestar_collab_weapon), 2) if len(fivestar_collab_weapon) > 0 else None
             collab_guarantee_rate = "100 %" if len(limit_collab_weapon) == len(fivestar_collab_weapon) else f"{round(((2 * (len(limit_collab_weapon) - len(fivestar_collab_weapon))) / len(limit_collab_weapon)), 2) * 100} %"
             status_text += f"聯動武器({true_collab_weapon_count} / 90) - 總抽數：{len(collab_weapon)}\n限定數量：{len(limit_collab_weapon)}\n平均限定金：{average_limit_collab_weapon}\n五星數量：{len(fivestar_collab_weapon)}\n平均五星金：{average_collab}\n保底不歪率：{collab_guarantee_rate}\n"
 
         if game == "絕區零" and idx == 4:
-            average_bangboo = round(len(bangboo) / len(fivestar_bangboo),2) if len(fivestar_bangboo) > 0 else None
-            true_bangboo_count = len(bangboo_count) - 1 if len(bangboo_count) - 1 >= 0 else 0
+            true_bangboo_count = len(bangboo_count) - 1 if len(fivestar_bangboo) > 0 else len(bangboo_count)
+            true_bangboo_count = max(0, true_bangboo_count)
+            
+            average_bangboo = round((len(bangboo) - true_bangboo_count) / len(fivestar_bangboo), 2) if len(fivestar_bangboo) > 0 else None
             status_text += f"邦布池({true_bangboo_count} / 80) - 總抽數：{len(bangboo)}\n邦布五星數：{len(fivestar_bangboo)}\n平均五星數：{average_bangboo}\n"
 
         if game != "絕區零" and idx == 0:

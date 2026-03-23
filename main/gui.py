@@ -177,6 +177,61 @@ class FlowLayout(QLayout):
             line_height = max(line_height, item.sizeHint().height())
         return y + line_height - rect.y()
 
+class PityItem(QFrame):
+    """專門用來顯示『已墊抽數』的卡片"""
+    def __init__(self, pity):
+        super().__init__()
+        self.pity = pity
+        self.init_ui()
+
+    def init_ui(self):
+        self.setFrameShape(QFrame.StyledPanel)
+        self.setFixedSize(480, 100) # 維持跟角色卡片一樣的大小
+        self.setToolTip("距離下一次出高星級的墊池抽數")
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(30, 5, 30, 5) # 因為沒有頭像，邊距稍微拉大一點讓視覺置中
+
+        # --- 左側標題 ---
+        title_label = QLabel("✨ 目前已墊")
+        title_label.setObjectName("pityTitle")
+        layout.addWidget(title_label)
+
+        layout.addStretch() 
+
+        # --- 右側抽數 ---
+        count_label = QLabel(f"{self.pity} 抽")
+        count_label.setObjectName("pityCount")
+        layout.addWidget(count_label)
+
+        # 顏色邏輯 (墊越多越接近保底，顏色越紅)
+        if self.pity < 40: color = "#8BC34A" 
+        elif self.pity <= 69: color = "#FF9800" 
+        else: color = "#F44336" 
+
+        # 💡 特殊樣式：加上半透明虛線邊框，讓它看起來像「狀態卡」而不是「角色卡」
+        self.setStyleSheet(f"""
+            PityItem {{ 
+                background-color: {color}; 
+                border-radius: 12px; 
+                border: 3px dashed rgba(255, 255, 255, 0.4); 
+            }}
+            
+            QLabel#pityTitle {{ 
+                font-size: 35px;  
+                font-weight: bold;
+                color: white;
+                background: transparent;
+            }}
+            
+            QLabel#pityCount {{
+                font-size: 35px;
+                font-weight: bold;
+                color: white;
+                background: transparent;
+            }}
+        """)
+
 class RecordItem(QFrame):
     """單筆抽卡紀錄卡片 (支援懸停時間與歪標記)"""
     def __init__(self, name, pity, time_str, is_wry=False, image_bytes=None):
@@ -204,8 +259,6 @@ class RecordItem(QFrame):
         
         if self.image_bytes:
             self.update_pixmap(self.image_bytes)
-        else:
-            self.avatar_label.setStyleSheet("background-color: rgba(0,0,0,0.2); border-radius: 10px;")
             
         self.avatar_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.avatar_label)
@@ -213,7 +266,7 @@ class RecordItem(QFrame):
         # --- 名字部分 (字級加大到 35) ---
         self.name_label = QLabel(self.name)
         # 這裡設定字級為 35，並確保粗體
-        font_size = 20
+        font_size = 16
         
         font_id = QFontDatabase.addApplicationFont("./assets/font.ttf")
         if font_id != -1:
@@ -243,7 +296,7 @@ class RecordItem(QFrame):
 
         # --- 抽數部分 ---
         self.pity_label = QLabel(f"{self.pity} 抽")
-        self.pity_label.setFont(QFont("Consolas", 30, QFont.Bold)) # 抽數也稍微放大一點點
+        self.pity_label.setFont(QFont("Consolas", 20, QFont.Bold)) # 抽數也稍微放大一點點
         layout.addWidget(self.pity_label)
 
         # 設定背景色邏輯
@@ -315,24 +368,39 @@ class InputDialog(QDialog):
 class FetchDataThread(QThread):
     update_signal = pyqtSignal(str) 
     finished_signal = pyqtSignal()
+
     def __init__(self, selected_game):
         super().__init__()
         self.selected_game = selected_game
+
     def run(self):
         try:
             if self.selected_game == "原神":
-                self.update_signal.emit("正在讀取原神歷史紀錄，請稍等...")
-                functions.get_GSdata_by_api()
+                self.update_signal.emit("🚀 開始連接原神伺服器，請稍等...")
+                # 💡 關鍵：把 self.update_signal 當作 log_signal 傳進去
+                functions.get_GSdata_by_api(log_signal=self.update_signal)
+                
             elif self.selected_game == "崩鐵":
-                self.update_signal.emit("正在讀取崩鐵歷史紀錄，請稍等...")
-                functions.get_HSRdata_by_api()
+                self.update_signal.emit("🚀 開始連接崩壞：星穹鐵道伺服器，請稍等...")
+                functions.get_HSRdata_by_api(log_signal=self.update_signal)
+                
             elif self.selected_game == "絕區零":
-                self.update_signal.emit("正在讀取絕區零歷史紀錄，請稍等...")
-                functions.get_ZZZdata_by_api()
-            self.update_signal.emit("抽卡紀錄已讀取")
+                self.update_signal.emit("🚀 開始連接絕區零伺服器，請稍等...")
+                functions.get_ZZZdata_by_api(log_signal=self.update_signal)
+            
+            # 因為 data_to_json 跑完會自己發送 "🎉 所有操作完成"，這行也可以作為保險
+            self.update_signal.emit(f"✅ {self.selected_game} 抽卡紀錄已讀取完成！")
+            
+            # 任務成功結束，發送完成訊號去啟動圖片預載小精靈
             self.finished_signal.emit()
+            
         except Exception as e:
-            self.update_signal.emit(f"讀取失敗，請先在遊戲裡打開抽卡歷史紀錄")
+            # 發生錯誤時，傳送失敗提示，並印出錯誤原因方便你除錯
+            print(f"抓取資料發生例外錯誤: {e}")
+            self.update_signal.emit("❌ 讀取失敗，請確認是否已在遊戲內打開抽卡紀錄頁面")
+            
+            # 💡 記得就算失敗也要發送 finished_signal，不然 UI 按鈕會永遠卡在轉圈圈或鎖死狀態
+            self.finished_signal.emit()
 
 class AvatarFetchThread(QThread):
     # 定義一個訊號：當圖片抓好時，把「卡片編號」和「圖片資料」送回給主畫面
@@ -701,7 +769,7 @@ class MainWindow(QWidget):
                         # 只在限定池（排除新手、常駐）生效
                         if banner_name not in ["新手", "常駐"]:
                             # 2025/04/26 字串比較在標準 ISO 時間格式下是有效的
-                            if time_str >= "2025-04-26 00:00:00" and name in ["符玄", "刃", "希兒"]:
+                            if time_str >= "2025-04-26 00:00:00" and name in ["符玄", "刃", "希兒"] and selected_game == "崩鐵":
                                 is_standard = True
                         
                         # 決定這張卡片要不要顯示「歪」標籤
@@ -715,6 +783,16 @@ class MainWindow(QWidget):
                         # 更新「上一抽是否為常駐」的狀態給下一張卡片用
                         last_was_standard = is_standard if banner_name not in ["新手", "常駐"] else False
                         counter = 0
+                
+                # 💡 新增判斷邏輯：原神/崩鐵的新手池，如果總抽數 >= 50，就不顯示「已墊卡片」
+                show_pity_card = True
+                if selected_game in ["原神", "崩鐵"] and banner_name == "新手":
+                    show_pity_card = False
+
+                # 如果條件允許，才把已墊卡片畫出來
+                if show_pity_card and counter > 0:
+                    pity_widget = PityItem(counter)
+                    self.flow_layout.addWidget(pity_widget)
 
                 for widget in reversed(cards_to_show):
                     self.flow_layout.addWidget(widget)
@@ -739,6 +817,13 @@ class MainWindow(QWidget):
         self.thread.start()
 
     def on_thread_finished(self):
+        self.summary_label.setText("正在解析新獲得的角色與圖片，請稍候...")
+        
+        self.preload_thread = PreloadDictionaryThread()
+        # 小精靈抓完圖片後，再真正去重繪畫面 (例如呼叫 change_game 或是你原本畫卡片的函式)
+        self.preload_thread.preload_finished.connect(self.on_dictionary_ready) 
+        self.preload_thread.start()
+        
         self.change_game() 
 
     def export_data(self):
@@ -788,12 +873,28 @@ class MainWindow(QWidget):
                 if os.path.exists(system_path):
                     extracted_data = functions.compare_input_data(system_path, extracted_data, selected_game)
 
+                # 1. 儲存最新的 JSON 紀錄
                 with open(system_path, "w", encoding="utf8") as file:
                     json.dump(extracted_data, file, indent=4, ensure_ascii=False)
 
-                self.change_game()
+                # 2. 更新 Combo 選單狀態
                 self.account_combo.setCurrentText(account)
-            self.external_combo.setCurrentIndex(0)
+                self.external_combo.setCurrentIndex(0)
+
+                # ==========================================
+                # 🚀 3. 呼叫小精靈去掃描並下載新圖片！
+                # ==========================================
+                # (建議在啟動前可以加個彈窗或文字提示："正在載入最新圖片..."，體驗更好)
+                self.preload_thread = PreloadDictionaryThread()
+                
+                # 將信號連接到更新畫面的函式
+                # 如果你的 on_dictionary_ready 裡面有呼叫類似 refresh_ui() 或重新繪製卡片的邏輯，就直接用它
+                self.preload_thread.preload_finished.connect(self.on_dictionary_ready) 
+                
+                # 如果 on_dictionary_ready 沒有重繪畫面，你可以改成這樣串接：
+                # self.preload_thread.preload_finished.connect(self.change_game)
+                
+                self.preload_thread.start()
 
     # ----------------------------------------
     # QSS 全局設計樣式
