@@ -670,6 +670,7 @@ class MainWindow(QWidget):
 
     def on_dictionary_ready(self):
         self.summary_label.setText("圖庫載入完成！可以開始查詢紀錄囉！")
+        self.change_game()
 
     def change_game(self):
         sender = self.sender()
@@ -859,41 +860,48 @@ class MainWindow(QWidget):
             file_path, _ = QFileDialog.getOpenFileName(self, "打開檔案", "", "JSON 檔案 (*.json)")
             if file_path:
                 selected_game = self.GameIconGroup.checkedButton().text()
-                gameText = "GenshinImpact" if selected_game == "原神" else "Honkai_StarRail" if selected_game == "崩鐵" else "ZenlessZoneZero"
-                system_path = f"{data_path}/user_data/{gameText}.json"
                 
+                # 取得解析後的資料 (現在會是字典格式：{"原神": {...}, "崩鐵": {...}})
                 extracted_data = functions.extract_data(selected_game, file_path)
+                
                 if extracted_data == "錯誤的遊戲資料":
                     QMessageBox.critical(self, "錯誤", "錯誤或無法解析的歷史紀錄")
                     return
 
-                account = extracted_data['info']['uid']
-                system_path = system_path[:-5] + f"_{account}.json"
+                last_account = ""
 
-                if os.path.exists(system_path):
-                    extracted_data = functions.compare_input_data(system_path, extracted_data, selected_game)
+                # ========================================================
+                # 🚀 關鍵修改：迴圈處理每一個成功解析的遊戲，分別存成不同檔案
+                # ========================================================
+                for game_name, game_data in extracted_data.items():
+                    # 判斷這個資料屬於哪個遊戲
+                    gameText = "GenshinImpact" if game_name == "原神" else "Honkai_StarRail" if game_name == "崩鐵" else "ZenlessZoneZero"
+                    
+                    account = game_data['info']['uid']
+                    last_account = account  # 記下帳號，等一下更新選單用
+                    
+                    system_path = f"{data_path}/user_data/{gameText}_{account}.json"
 
-                # 1. 儲存最新的 JSON 紀錄
-                with open(system_path, "w", encoding="utf8") as file:
-                    json.dump(extracted_data, file, indent=4, ensure_ascii=False)
+                    if os.path.exists(system_path):
+                        game_data = functions.compare_input_data(system_path, game_data, game_name)
+
+                    # 1. 儲存最新的 JSON 紀錄 (寫入對應的遊戲檔案中)
+                    with open(system_path, "w", encoding="utf8") as file:
+                        json.dump(game_data, file, indent=4, ensure_ascii=False)
 
                 # 2. 更新 Combo 選單狀態
-                self.account_combo.setCurrentText(account)
+                if last_account:
+                    self.account_combo.setCurrentText(last_account)
                 self.external_combo.setCurrentIndex(0)
 
                 # ==========================================
                 # 🚀 3. 呼叫小精靈去掃描並下載新圖片！
                 # ==========================================
-                # (建議在啟動前可以加個彈窗或文字提示："正在載入最新圖片..."，體驗更好)
+                self.summary_label.setText("正在載入最新圖片，請稍候...") # 加個提示讓體驗更好
+                
                 self.preload_thread = PreloadDictionaryThread()
-                
-                # 將信號連接到更新畫面的函式
-                # 如果你的 on_dictionary_ready 裡面有呼叫類似 refresh_ui() 或重新繪製卡片的邏輯，就直接用它
+                # 將信號連接到更新畫面的函式 (等圖片抓完再刷新畫面，才不會破圖)
                 self.preload_thread.preload_finished.connect(self.on_dictionary_ready) 
-                
-                # 如果 on_dictionary_ready 沒有重繪畫面，你可以改成這樣串接：
-                # self.preload_thread.preload_finished.connect(self.change_game)
-                
                 self.preload_thread.start()
 
     # ----------------------------------------

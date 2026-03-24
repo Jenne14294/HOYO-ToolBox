@@ -508,53 +508,83 @@ def extract_data(game, input_path):
     with open(input_path, "r", encoding="utf8") as file:
         input_data = json.load(file)
 
-    if "hkrpg" in input_data:
-        input_data["info"]["uid"] = input_data["hkrpg"][0]["uid"]
-        input_data["info"]["timezone"] = input_data["hkrpg"][0]["timezone"]
-        input_data["info"]["lang"] = input_data["hkrpg"][0]["lang"]
-        input_data['list'] = input_data["hkrpg"][0]['list']
-        del input_data["hkrpg"]
-    if "nap" in input_data:
-        input_data["info"]["uid"] = input_data["nap"][0]["uid"]
-        input_data["info"]["timezone"] = input_data["nap"][0]["timezone"]
-        input_data["info"]["lang"] = input_data["nap"][0]["lang"]
-        input_data['list'] = input_data["nap"][0]['list']
-        del input_data["nap"]
+    extracted_results = {}
+    base_info = input_data.get("info", {})
 
-    if game == "原神" and input_data["list"][0]["gacha_type"] not in ["100", "200", "301", "302", "400", "500"]: return "錯誤的遊戲資料"
-    elif game == "崩鐵" and input_data["list"][0]["gacha_type"] not in ["1", "2", "11", "12", "21", "22"]: return "錯誤的遊戲資料"
-    elif game == "絕區零" and input_data["list"][0]["gacha_type"] not in ["1", "2", "3", "5"]: return "錯誤的遊戲資料"
+    game_tags = {"hk4e": "原神", "hkrpg": "崩鐵", "nap": "絕區零"}
 
-    novice, standard, character, weapon = [], [], [], []
-    new_data = {}
+    # 💡 建立一個內部函式，把你的分類邏輯包起來，這樣才能重複給不同的遊戲使用
+    def process_single_game(target_game, info_data, data_list):
+        if not data_list: return None
 
-    if game == "原神":
-        collection = []
-        gacha_mapping = {"100": novice, "200": standard, "301": character, "400": character, "302": weapon, "500": collection}
-        keys = {"100":"novice", "200":"standard", "301":"characters", "302":"weapons", "500":"collection"}
-    elif game == "崩鐵":
-        collab_char, collab_weapon = [], []
-        gacha_mapping = {"1": standard, "2": novice, "11": character, "12": weapon, "21": collab_char, "22": collab_weapon}
-        keys = {"2":"novice", "1":"standard", "11":"characters", "12":"weapons", "21":"collab_char", "22":"collab_weapon"}
-    elif game == "絕區零":
-        bangboo = []
-        gacha_mapping = {"1": standard, "2": character, "3": weapon, "5": bangboo}
-        keys = {"1":"standard", "2":"characters", "3":"weapons", "5":"bangboo"}
-        
-    new_data["info"] = input_data["info"]
-    for item in input_data["list"]:
-        gacha_list = gacha_mapping.get(item["gacha_type"])
-        if gacha_list is not None: gacha_list.append(item)
+        first_gacha = str(data_list[0].get("gacha_type", ""))
+        if target_game == "原神" and first_gacha not in ["100", "200", "301", "302", "400", "500"]: return None
+        if target_game == "崩鐵" and first_gacha not in ["1", "2", "11", "12", "21", "22"]: return None
+        if target_game == "絕區零" and first_gacha not in ["1", "2", "3", "5"]: return None
 
-    for key, value in keys.items():
-        new_data[value] = gacha_mapping.get(key)[::-1]
+        novice, standard, character, weapon = [], [], [], []
+        new_data = {"info": info_data}
 
-    for key in new_data:
-        if key == "info" or new_data[key] == []: continue
-        for item in new_data[key]:
-            item["uigf_gacha_type"] = "400" if (game == "原神" and item["gacha_type"] == "301") else item["gacha_type"]
+        if target_game == "原神":
+            collection = []
+            gacha_mapping = {"100": novice, "200": standard, "301": character, "400": character, "302": weapon, "500": collection}
+            keys = {"100":"novice", "200":"standard", "301":"characters", "302":"weapons", "500":"collection"}
+        elif target_game == "崩鐵":
+            collab_char, collab_weapon = [], []
+            gacha_mapping = {"1": standard, "2": novice, "11": character, "12": weapon, "21": collab_char, "22": collab_weapon}
+            keys = {"2":"novice", "1":"standard", "11":"characters", "12":"weapons", "21":"collab_char", "22":"collab_weapon"}
+        elif target_game == "絕區零":
+            bangboo = []
+            gacha_mapping = {"1": standard, "2": character, "3": weapon, "5": bangboo}
+            keys = {"1":"standard", "2":"characters", "3":"weapons", "5":"bangboo"}
 
-    return new_data
+        for item in data_list:
+            g_list = gacha_mapping.get(str(item.get("gacha_type")))
+            if g_list is not None: 
+                g_list.append(item)
+
+        for key_id, target_key in keys.items():
+            target_list = gacha_mapping.get(key_id)
+            if target_list is not None:
+                new_data[target_key] = target_list[::-1]
+
+        for key in new_data:
+            if key == "info" or new_data[key] == []: continue
+            for item in new_data[key]:
+                item["uigf_gacha_type"] = "400" if (target_game == "原神" and str(item.get("gacha_type")) == "301") else str(item.get("gacha_type"))
+
+        return new_data
+
+    # ==========================================
+    # 1. 如果是多遊戲檔案 (包含 hk4e, hkrpg 等)
+    # ==========================================
+    if any(tag in input_data for tag in game_tags):
+        for tag, game_name in game_tags.items():
+            if tag in input_data and len(input_data[tag]) > 0:
+                game_block = input_data[tag][0]
+                
+                new_info = base_info.copy()
+                new_info["uid"] = game_block.get("uid", "")
+                new_info["timezone"] = game_block.get("timezone", "")
+                new_info["lang"] = game_block.get("lang", "")
+                
+                parsed_data = process_single_game(game_name, new_info, game_block.get("list", []))
+                if parsed_data:
+                    extracted_results[game_name] = parsed_data
+
+    # ==========================================
+    # 2. 如果是單一遊戲檔案 (用到你傳進來的 game 參數)
+    # ==========================================
+    else:
+        parsed_data = process_single_game(game, base_info, input_data.get("list", []))
+        if parsed_data:
+            extracted_results[game] = parsed_data
+
+    # 為了配合你 GUI 原本的錯誤判斷機制，如果沒解析出東西，一樣回傳錯誤字串
+    if not extracted_results:
+        return "錯誤的遊戲資料"
+
+    return extracted_results
 
 def export_json(file_path, folder_path, game):
     with open(file_path, "r", encoding="utf8") as file:
