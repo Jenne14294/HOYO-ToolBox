@@ -15,7 +15,7 @@ import isodate
 from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, 
                              QLabel, QComboBox, QFrame, QPushButton, QScrollArea, 
                              QSizePolicy, QRadioButton, QButtonGroup, QLayout, QStyle,
-                             QFileDialog, QMessageBox, QDialog, QTextEdit)
+                             QFileDialog, QMessageBox, QDialog, QTextEdit, QCheckBox, QDialogButtonBox)
 from PyQt5.QtCore import Qt, QSize, QPoint, QRect, QThread, pyqtSignal
 from PyQt5.QtGui import QFont, QIcon, QPixmap, QFontDatabase
 
@@ -548,6 +548,45 @@ class PreloadDictionaryThread(QThread):
         print("🎉 [背景作業] 所有專屬高星級圖片已平行預載完成！")
         self.preload_finished.emit()
 
+class UIGFExportDialog(QDialog):
+    """專門用來選擇 UIGF 導出帳號的彈出視窗"""
+    def __init__(self, data_path, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("選擇要導出至 UIGF 的帳號")
+        self.setMinimumWidth(300)
+        self.layout = QVBoxLayout(self)
+
+        self.checkboxes = {}
+        
+        # 掃描 user_data 資料夾內所有的 json 檔案
+        folder = f"{data_path}/user_data/"
+        if os.path.exists(folder):
+            for file in os.listdir(folder):
+                if file.endswith(".json"):
+                    # 把檔名轉換成好看的顯示名稱 (例如: 原神 - 800000000)
+                    display_name = file.replace(".json", "")
+                    display_name = display_name.replace("GenshinImpact", "原神").replace("Honkai_StarRail", "崩鐵").replace("ZenlessZoneZero", "絕區零")
+                    display_name = display_name.replace("_", " - ")
+
+                    cb = QCheckBox(display_name)
+                    cb.setChecked(True) # 預設全選
+                    self.layout.addWidget(cb)
+                    # 用字典把 CheckBox 和真實檔名綁定起來
+                    self.checkboxes[file] = cb
+
+        if not self.checkboxes:
+            self.layout.addWidget(QLabel("找不到任何本地帳號紀錄。"))
+
+        # 加入 確認/取消 按鈕
+        btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btn_box.accepted.connect(self.accept)
+        btn_box.rejected.connect(self.reject)
+        self.layout.addWidget(btn_box)
+
+    def get_selected_files(self):
+        """回傳使用者有打勾的檔案名稱清單"""
+        return [file for file, cb in self.checkboxes.items() if cb.isChecked()]
+
 # ==============================
 # 主視窗 (UI 結合 邏輯)
 # ==============================
@@ -605,15 +644,19 @@ class MainWindow(QWidget):
 
         left_layout.addWidget(QLabel("外部輸入："))
         self.external_combo = QComboBox()
-        self.external_combo.addItems(["==選擇方式==", "導入 JSON", "手動輸入"])
+        self.external_combo.addItems(["==選擇方式==", "導入 JSON/UIGF", "手動輸入"])
         self.external_combo.setStyleSheet("font-size: 14px; padding: 5px;")
         self.external_combo.currentTextChanged.connect(self.external_data)
         left_layout.addWidget(self.external_combo)
 
-        self.btn_export = QPushButton("導出紀錄")
-        self.btn_export.setObjectName("OutlineBtn")
-        self.btn_export.clicked.connect(self.export_data)
-        left_layout.addWidget(self.btn_export)
+        left_layout.addWidget(QLabel("導出歷史紀錄："))
+        self.export_combo = QComboBox()
+        # 加入不同的導出選項
+        self.export_combo.addItems(["==選擇格式==", "導出 JSON (標準)", "導出 UIGF 格式"])
+        self.export_combo.setStyleSheet("font-size: 14px; padding: 5px;")
+        # 連接到新的導出邏輯
+        self.export_combo.currentTextChanged.connect(self.handle_export_option)
+        left_layout.addWidget(self.export_combo)
 
         self.btn_update = QPushButton("檢查更新")
         self.btn_update.setObjectName("OutlineBtn")
@@ -827,24 +870,60 @@ class MainWindow(QWidget):
         
         self.change_game() 
 
-    def export_data(self):
-        folder_path = QFileDialog.getExistingDirectory(self, "選擇資料夾", "")
-        if folder_path:
-            try:
-                accountID = self.account_combo.currentText()
-                selected_game = self.GameIconGroup.checkedButton().text()
-                gameText = "GenshinImpact" if selected_game == "原神" else "Honkai_StarRail" if selected_game == "崩鐵" else "ZenlessZoneZero"
-                file_path = f"{data_path}/user_data/{gameText}_{accountID}.json"
-                
-                if not os.path.exists(file_path):
-                    QMessageBox.critical(self, "錯誤", "檔案不存在!")
+    def handle_export_option(self, text):
+        if text == "==選擇方式==": return
+
+        # ==========================================
+        # 選項 1：導出原本的單一 JSON
+        # ==========================================
+        if text == "導出 JSON (標準)":
+            folder_path = QFileDialog.getExistingDirectory(self, "選擇資料夾", "")
+            if folder_path:
+                try:
+                    accountID = self.account_combo.currentText()
+                    selected_game = self.GameIconGroup.checkedButton().text()
+                    gameText = "GenshinImpact" if selected_game == "原神" else "Honkai_StarRail" if selected_game == "崩鐵" else "ZenlessZoneZero"
+                    file_path = f"{data_path}/user_data/{gameText}_{accountID}.json"
+                    
+                    if not os.path.exists(file_path):
+                        QMessageBox.critical(self, "錯誤", "檔案不存在!")
+                        self.export_combo.setCurrentIndex(0)
+                        return
+
+                    export_path = os.path.join(folder_path, f"{gameText}_{accountID}_export.json")
+                    functions.export_json(file_path, export_path, selected_game)
+                    QMessageBox.information(self, "提示", "歷史紀錄已導出！")
+                except Exception as e:
+                    QMessageBox.critical(self, "錯誤", f"導出失敗\n{e}")
+
+        # ==========================================
+        # 選項 2：導出 UIGF 格式 (可多選)
+        # ==========================================
+        elif text == "導出 UIGF 格式":
+            # 呼叫我們剛剛寫的彈窗
+            dialog = UIGFExportDialog(data_path, self)
+            
+            if dialog.exec_() == QDialog.Accepted:
+                selected_files = dialog.get_selected_files()
+                if not selected_files:
+                    QMessageBox.warning(self, "警告", "未選擇任何帳號！")
+                    self.export_combo.setCurrentIndex(0)
                     return
 
-                export_path = os.path.join(folder_path, f"{gameText}_{accountID}_export.json")
-                functions.export_json(file_path, export_path, selected_game)
-                QMessageBox.information(self, "提示", "歷史紀錄已導出！")
-            except Exception as e:
-                QMessageBox.critical(self, "錯誤", f"導出失敗\n{e}")
+                # 讓使用者選擇儲存的檔案名稱 (預設叫 UIGF_Export.json)
+                save_path, _ = QFileDialog.getSaveFileName(self, "導出 UIGF 紀錄", "UIGF_Export.json", "JSON 檔案 (*.json)")
+                if save_path:
+                    try:
+                        # 呼叫轉換邏輯
+                        uigf_data = functions.generate_uigf_data(selected_files)
+                        with open(save_path, "w", encoding="utf8") as f:
+                            json.dump(uigf_data, f, indent=4, ensure_ascii=False)
+                        QMessageBox.information(self, "提示", "UIGF 歷史紀錄已成功打包導出！")
+                    except Exception as e:
+                        QMessageBox.critical(self, "錯誤", f"UIGF 導出失敗\n{e}")
+
+        # 執行完畢後把選單切回預設值
+        self.export_combo.setCurrentIndex(0)
 
     def external_data(self, input_name):
         if input_name == "手動輸入":
@@ -856,12 +935,13 @@ class MainWindow(QWidget):
                 self.summary_label.setText(result)
             self.external_combo.setCurrentIndex(0)
         
-        elif input_name == "導入 JSON":
+        elif input_name == "導入 JSON/UIGF":
             file_path, _ = QFileDialog.getOpenFileName(self, "打開檔案", "", "JSON 檔案 (*.json)")
             if file_path:
                 selected_game = self.GameIconGroup.checkedButton().text()
                 
                 # 取得解析後的資料 (現在會是字典格式：{"原神": {...}, "崩鐵": {...}})
+                # 取得解析後的資料 (現在會是 List：[("原神", data1), ("原神", data2), ("崩鐵", data3)])
                 extracted_data = functions.extract_data(selected_game, file_path)
                 
                 if extracted_data == "錯誤的遊戲資料":
@@ -871,21 +951,20 @@ class MainWindow(QWidget):
                 last_account = ""
 
                 # ========================================================
-                # 🚀 關鍵修改：迴圈處理每一個成功解析的遊戲，分別存成不同檔案
+                # 🚀 關鍵修改：因為已經是陣列了，直接讀取 tuple 就好，拿掉 .items()
                 # ========================================================
-                for game_name, game_data in extracted_data.items():
-                    # 判斷這個資料屬於哪個遊戲
+                for game_name, game_data in extracted_data:
                     gameText = "GenshinImpact" if game_name == "原神" else "Honkai_StarRail" if game_name == "崩鐵" else "ZenlessZoneZero"
                     
                     account = game_data['info']['uid']
-                    last_account = account  # 記下帳號，等一下更新選單用
+                    last_account = account  # 記下最後一個處理的帳號
                     
                     system_path = f"{data_path}/user_data/{gameText}_{account}.json"
 
                     if os.path.exists(system_path):
                         game_data = functions.compare_input_data(system_path, game_data, game_name)
 
-                    # 1. 儲存最新的 JSON 紀錄 (寫入對應的遊戲檔案中)
+                    # 儲存紀錄
                     with open(system_path, "w", encoding="utf8") as file:
                         json.dump(game_data, file, indent=4, ensure_ascii=False)
 

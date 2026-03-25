@@ -475,32 +475,24 @@ def compare_input_data(system_path, input_data, game):
         keys.append("bangboo")
 
     for key in keys:
-        input_latest_id = input_data[key][0]['id'] if (key in input_data) and (len(input_data[key]) > 0) else ""
-        input_oldest_id = input_data[key][-1]['id'] if (key in input_data) and (len(input_data[key]) > 0) else ""
-        system_latest_id = system_data[key][0]['id'] if (key in system_data) and (len(system_data[key]) > 0) else ""
-        system_oldest_id = system_data[key][-1]['id'] if (key in system_data) and (len(system_data[key]) > 0) else ""
-
-        if input_latest_id == "" and system_latest_id != "": new_data[key] = system_data[key]
-        elif system_latest_id == "" and input_latest_id != "": new_data[key] = input_data[key]
-        elif system_latest_id == input_latest_id == "": new_data[key] = []
-        elif system_latest_id > input_latest_id:
-            new_data[key] = [item for item in system_data[key] if item['id'] > input_latest_id]
-            new_data[key].extend(input_data[key]) 
-        elif system_latest_id < input_latest_id:
-            new_data[key] = [item for item in input_data[key] if item['id'] > system_latest_id]
-            new_data[key].extend(system_data[key])
-        elif system_latest_id == input_latest_id: new_data[key] = system_data[key]
-
-        if input_oldest_id == "" and system_oldest_id != "": new_data[key] = system_data[key]
-        elif system_oldest_id == "" and input_oldest_id != "": new_data[key] = input_data[key]
-        elif system_oldest_id == input_oldest_id == "": new_data[key] = []
-        elif system_oldest_id > input_oldest_id:
-            input_list = [item for item in input_data[key] if item['id'] < system_oldest_id]
-            new_data[key].extend(input_list) 
-        elif system_oldest_id < input_oldest_id:
-            system_list = [item for item in input_data[key] if item['id'] < input_oldest_id]
-            new_data[key].extend(system_list)
-        elif system_oldest_id == input_oldest_id: new_data[key] = system_data[key]
+        # 安全地取得舊資料與新資料的陣列 (如果沒有就給空陣列)
+        sys_list = system_data.get(key, [])
+        inp_list = input_data.get(key, [])
+        
+        # 🚀 關鍵絕招：建立一個字典，用 ID 當作 Key 來「去重複」
+        merged_dict = {}
+        
+        # 先把舊資料倒進去
+        for item in sys_list:
+            merged_dict[item['id']] = item
+            
+        # 再把新資料倒進去 (如果有重複的 ID，會自然蓋過去，不會多出一筆)
+        for item in inp_list:
+            merged_dict[item['id']] = item
+            
+        # 最後把字典裡所有的抽卡紀錄拿出來，依照 ID 從大到小排序 (最新 -> 最舊)
+        # 用 int() 包起來排序，確保數字大小絕對精準
+        new_data[key] = sorted(merged_dict.values(), key=lambda x: int(x['id']), reverse=True)
                 
     return new_data
 
@@ -508,12 +500,12 @@ def extract_data(game, input_path):
     with open(input_path, "r", encoding="utf8") as file:
         input_data = json.load(file)
 
-    extracted_results = {}
+    # 💡 這裡改成 List (陣列)，這樣同一個遊戲有多個帳號也能裝得下！
+    extracted_results = []
     base_info = input_data.get("info", {})
 
     game_tags = {"hk4e": "原神", "hkrpg": "崩鐵", "nap": "絕區零"}
 
-    # 💡 建立一個內部函式，把你的分類邏輯包起來，這樣才能重複給不同的遊戲使用
     def process_single_game(target_game, info_data, data_list):
         if not data_list: return None
 
@@ -556,31 +548,31 @@ def extract_data(game, input_path):
         return new_data
 
     # ==========================================
-    # 1. 如果是多遊戲檔案 (包含 hk4e, hkrpg 等)
+    # 1. 處理 UIGF 多遊戲檔案
     # ==========================================
     if any(tag in input_data for tag in game_tags):
         for tag, game_name in game_tags.items():
-            if tag in input_data and len(input_data[tag]) > 0:
-                game_block = input_data[tag][0]
-                
-                new_info = base_info.copy()
-                new_info["uid"] = game_block.get("uid", "")
-                new_info["timezone"] = game_block.get("timezone", "")
-                new_info["lang"] = game_block.get("lang", "")
-                
-                parsed_data = process_single_game(game_name, new_info, game_block.get("list", []))
-                if parsed_data:
-                    extracted_results[game_name] = parsed_data
+            if tag in input_data and isinstance(input_data[tag], list):
+                # 🚀 關鍵修改：遍歷這個遊戲底下的「每一個帳號」！
+                for game_block in input_data[tag]:
+                    new_info = base_info.copy()
+                    new_info["uid"] = game_block.get("uid", "")
+                    new_info["timezone"] = game_block.get("timezone", "")
+                    new_info["lang"] = game_block.get("lang", "")
+                    
+                    parsed_data = process_single_game(game_name, new_info, game_block.get("list", []))
+                    if parsed_data:
+                        # 塞入陣列中
+                        extracted_results.append((game_name, parsed_data))
 
     # ==========================================
-    # 2. 如果是單一遊戲檔案 (用到你傳進來的 game 參數)
+    # 2. 處理單一遊戲舊版檔案
     # ==========================================
     else:
         parsed_data = process_single_game(game, base_info, input_data.get("list", []))
         if parsed_data:
-            extracted_results[game] = parsed_data
+            extracted_results.append((game, parsed_data))
 
-    # 為了配合你 GUI 原本的錯誤判斷機制，如果沒解析出東西，一樣回傳錯誤字串
     if not extracted_results:
         return "錯誤的遊戲資料"
 
@@ -618,6 +610,57 @@ def export_json(file_path, folder_path, game):
     new_data["info"]["export_app"] = "HOYO ToolBox"
     with open(folder_path, "w", encoding="utf8") as new_file:
         json.dump(new_data, new_file, indent=4, ensure_ascii=False)
+
+def generate_uigf_data(selected_files):
+        """將多個本地檔案合併並轉換為 UIGF v4.0 格式"""
+        uigf_export = {
+            "info": {
+                "export_app": "HOYO ToolBox",
+                "export_app_version": "1.0.0",
+                "version": "v4.0"
+            },
+            "hk4e": [],
+            "hkrpg": [],
+            "nap": []
+        }
+
+        for file_name in selected_files:
+            file_path = f"{data_path}/user_data/{file_name}"
+            with open(file_path, "r", encoding="utf8") as f:
+                data = json.load(f)
+
+            # 判斷這份檔案屬於哪個遊戲標籤
+            if file_name.startswith("GenshinImpact"): tag = "hk4e"
+            elif file_name.startswith("Honkai_StarRail"): tag = "hkrpg"
+            else: tag = "nap"
+
+            game_list = []
+            
+            # 把原本分好類的 novice, standard 等陣列，全部倒進同一個大 list
+            for key, items in data.items():
+                if key != "info" and isinstance(items, list):
+                    game_list.extend(items)
+
+            # UIGF 通常要求資料按照抽卡時間/ID 排序 (由小到大，最舊到最新)
+            game_list = sorted(game_list, key=lambda x: int(x['id']))
+
+            # 建立單一帳號的資料區塊
+            account_block = {
+                "uid": data.get("info", {}).get("uid", ""),
+                "timezone": data.get("info", {}).get("timezone", 8),
+                "lang": data.get("info", {}).get("lang", "zh-tw"),
+                "list": game_list
+            }
+            
+            # 塞進對應的遊戲陣列中
+            uigf_export[tag].append(account_block)
+
+        # 把沒有資料的空陣列刪掉，讓輸出的 JSON 更乾淨
+        if not uigf_export["hk4e"]: del uigf_export["hk4e"]
+        if not uigf_export["hkrpg"]: del uigf_export["hkrpg"]
+        if not uigf_export["nap"]: del uigf_export["nap"]
+
+        return uigf_export
 
 def check_version():
     config = configparser.ConfigParser()
