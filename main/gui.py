@@ -840,7 +840,7 @@ class MainWindow(QWidget):
                     show_pity_card = False
 
                 # 如果條件允許，才把已墊卡片畫出來
-                if show_pity_card and counter > 0:
+                if show_pity_card and counter >= 0:
                     pity_widget = PityItem(counter)
                     self.flow_layout.addWidget(pity_widget)
 

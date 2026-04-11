@@ -137,24 +137,31 @@ def fetch_data_by_api(game):
     logging.info(f"開始執行抓取流程，目標遊戲：{game}")
     logging.info("正在透過 Python 解析本地快取以獲取抽卡網址...")
     
-    # 🚀 直接呼叫我們剛寫好的秘密武器
     warp_url = get_warp_url_from_cache(game)
     
     if not warp_url:
         logging.error(f"❌ 嚴重錯誤：無法在本地快取中找到 {game} 的抽卡網址！請先在遊戲中開啟抽卡紀錄頁面。")
         return None, None
 
-    logging.info(f"成功擷取網址 (長度 {len(warp_url)}): {warp_url[:100]}...")
+    # ==========================================
+    # 🚀 關鍵修復 1：網址大掃除！把原有的參數全部砍掉，避免衝突
+    # ==========================================
+    warp_url = re.sub(r"&gacha_type=\d+", "", warp_url)
+    warp_url = re.sub(r"&real_gacha_type=\d+", "", warp_url)
+    warp_url = re.sub(r"&size=\d+", "", warp_url)
+    warp_url = re.sub(r"&end_id=[^&]*", "", warp_url)
+    warp_url = re.sub(r"&page=\d+", "", warp_url)
 
+    # 針對不同遊戲補上預設的卡池代碼，否則初始連線測試會報錯
     if game == "原神":
-        warp_url += "&size=100&gacha_type=301&end_id="
-    elif game == "崩鐵" and "size=" not in warp_url:
-        warp_url += "&size=100&end_id="
+        warp_url += "&gacha_type=301"
+    elif game == "崩鐵":
+        warp_url += "&gacha_type=11"
     elif game == "絕區零":
-        page_index = warp_url.find("&page")
-        if page_index != -1: 
-            warp_url = warp_url[:page_index]
-        warp_url += "&size=100&real_gacha_type=1&end_id="
+        warp_url += "&real_gacha_type=1"
+
+    # 統一把 size 設為 100，並留下 end_id 的空位
+    warp_url += "&size=100&end_id="
 
     if "api/getLdGachaLog" in warp_url:
         warp_url = warp_url.replace("api/getLdGachaLog", "api/getGachaLog")
@@ -231,19 +238,19 @@ def data_to_json(resdict, path, categories, game, warp_url, log_signal=None):
 
         latest_id = existed_data[key][0]['id'] if key in existed_data and len(existed_data[key]) >= 1 else ""
         pool_data = []
-        pool_info = {} # 用來裝 uid 和 lang 回傳給主執行緒
+        pool_info = {} 
 
-        if game == "原神":
-            url = warp_url.replace("gacha_type=301", f"gacha_type={value}")
-        elif game == "崩鐵":
-            url = warp_url.replace("gacha_type=11", f"gacha_type={value}")
-            if key in ["collab_char", "collab_weapon"]:
-                url = url.replace("api/getGachaLog", "api/getLdGachaLog")
-        elif game == "絕區零":
-            url = warp_url.replace("gacha_type=1", f"gacha_type={value}")
+        # ==========================================
+        # 🚀 關鍵修復 2：不管初始網址帶什麼，強制暴力替換成本管線的正確代碼！
+        # ==========================================
+        url = re.sub(r"gacha_type=\d+", f"gacha_type={value}", warp_url)
+        url = re.sub(r"real_gacha_type=\d+", f"real_gacha_type={value}", url)
+        
+        if game == "崩鐵" and key in ["collab_char", "collab_weapon"]:
+            url = url.replace("api/getGachaLog", "api/getLdGachaLog")
 
         page_count = 0
-        retry_count = 0  # 💡 新增：紀錄連續失敗次數
+        retry_count = 0
         
         while True:
             try:
