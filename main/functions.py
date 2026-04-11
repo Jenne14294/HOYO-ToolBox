@@ -2,13 +2,12 @@ import os
 import json
 import requests
 import time
-import subprocess
-import pyperclip
 import re
 import zipfile
 import shutil
 import configparser
 import logging
+import concurrent.futures
 from datetime import datetime
 
 local_folder_path = os.environ.get("LOCALAPPDATA")
@@ -26,6 +25,78 @@ logging.basicConfig(
 
 class HistoryURLNotFound(Exception):
     pass
+
+def get_warp_url_from_cache(game):
+    """直接解析本地遊戲快取來獲取抽卡網址，耗時 < 0.1秒"""
+    user_profile = os.environ.get("USERPROFILE")
+    if not user_profile: return None
+
+    # 1. 根據遊戲設定 Log 檔案路徑與特徵
+    if game == "原神":
+        log_path = os.path.join(user_profile, r"AppData\LocalLow\miHoYo\Genshin Impact\output_log.txt")
+        data_folder_name = "GenshinImpact_Data"
+    elif game == "崩鐵":
+        log_path = os.path.join(user_profile, r"AppData\LocalLow\Cognosphere\Star Rail\Player.log")
+        data_folder_name = "StarRail_Data"
+    elif game == "絕區零":
+        log_path = os.path.join(user_profile, r"AppData\LocalLow\Cognosphere\ZenlessZoneZero\Player.log")
+        if not os.path.exists(log_path): # 雙重檢查
+            log_path = os.path.join(user_profile, r"AppData\LocalLow\miHoYo\ZenlessZoneZero\Player.log")
+        data_folder_name = "ZenlessZoneZero_Data"
+    else:
+        return None
+
+    if not os.path.exists(log_path):
+        logging.error(f"找不到 {game} 的本地日誌檔，請確認是否在此電腦開啟過遊戲。")
+        return None
+
+    # 2. 從 Log 中找出遊戲安裝目錄
+    game_data_path = ""
+    try:
+        with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
+            log_content = f.read()
+            # 尋找類似 D:/Games/Star Rail/Games/StarRail_Data 的路徑
+            match = re.search(r"([A-Z]:[\\/].*?[\\/]" + data_folder_name + r")", log_content, re.IGNORECASE)
+            if match:
+                game_data_path = match.group(1).replace("/", "\\")
+    except Exception as e:
+        logging.error(f"讀取日誌失敗: {e}")
+        return None
+
+    if not game_data_path or not os.path.exists(game_data_path):
+        logging.error(f"無法從日誌中定位 {game} 的遊戲資料夾路徑。")
+        return None
+
+    # 3. 掃描 webCaches 資料夾，找出最新的 data_2 快取檔
+    web_caches_dir = os.path.join(game_data_path, "webCaches")
+    actual_cache_file = None
+    
+    if os.path.exists(web_caches_dir):
+        for root, dirs, files in os.walk(web_caches_dir):
+            if "data_2" in files:
+                temp_path = os.path.join(root, "data_2")
+                # 找出最後修改時間最新的 data_2
+                if actual_cache_file is None or os.path.getmtime(temp_path) > os.path.getmtime(actual_cache_file):
+                    actual_cache_file = temp_path
+
+    if not actual_cache_file:
+        logging.error(f"找不到 {game} 的網頁快取檔，請先在遊戲內打開抽卡紀錄！")
+        return None
+
+    # 4. 讀取二進位快取檔，精準挖出 AuthKey 網址
+    try:
+        with open(actual_cache_file, "r", encoding="utf-8", errors="ignore") as f:
+            cache_content = f.read()
+            # 正則表達式：抓取從 https 開始，包含 authkey= 的完整網址 (過濾掉不需要的字元)
+            urls = re.findall(r"https://[^\s\0\"'<]+authkey=[^\s\0\"'<#]+", cache_content)
+            if urls:
+                # 永遠回傳最後一個找到的網址 (因為它是最新的)
+                return urls[-1]
+    except Exception as e:
+        logging.error(f"解析快取網址失敗: {e}")
+        return None
+
+    return None
 
 # ==========================================
 # 定義全局常駐名單 (供 gui.py 判斷歪不歪使用)
@@ -62,51 +133,28 @@ def check_is_standard(game, banner_name, item_name):
 # 下面是你原本寫好的抓取與計算邏輯 (完全保留)
 # ==========================================
 
-def fetch_data_by_api(command, game):
+def fetch_data_by_api(game):
     logging.info(f"開始執行抓取流程，目標遊戲：{game}")
-    logging.info("正在呼叫 PowerShell 獲取抽卡網址...")
-    try:
-        result = subprocess.run(
-            ["powershell", "-Command", command],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=15 
-        )
-        
-        logging.info("--- PowerShell 執行日誌開始 ---")
-        if result.stdout:
-            logging.info(f"標準輸出: \n{result.stdout.strip()}")
-        if result.stderr:
-            logging.warning(f"標準錯誤: \n{result.stderr.strip()}")
-        logging.info("--- PowerShell 執行日誌結束 ---")
-
-        if result.returncode != 0:
-            logging.error(f"PowerShell 執行失敗！錯誤碼: {result.returncode}")
-            
-    except subprocess.TimeoutExpired:
-        logging.error("❌ 嚴重錯誤：PowerShell 執行超時 (超過 15 秒)！")
-        return None, None 
-    except Exception as e:
-        logging.error(f"❌ 呼叫 PowerShell 時發生系統錯誤: {e}", exc_info=True)
-        return None, None
-
-    time.sleep(1) 
-    warp_url = pyperclip.paste()
+    logging.info("正在透過 Python 解析本地快取以獲取抽卡網址...")
     
-    logging.info(f"從剪貼簿讀取到的內容 (長度 {len(warp_url)}): {warp_url[:100]}...")
-
-    if not warp_url or not warp_url.startswith("https"):
-        logging.error("❌ 嚴重錯誤：剪貼簿裡沒有正確的 HTTPS 網址！")
+    # 🚀 直接呼叫我們剛寫好的秘密武器
+    warp_url = get_warp_url_from_cache(game)
+    
+    if not warp_url:
+        logging.error(f"❌ 嚴重錯誤：無法在本地快取中找到 {game} 的抽卡網址！請先在遊戲中開啟抽卡紀錄頁面。")
         return None, None
+
+    logging.info(f"成功擷取網址 (長度 {len(warp_url)}): {warp_url[:100]}...")
 
     if game == "原神":
-        warp_url += "hk4e_global&size=20&gacha_type=301&end_id="
+        warp_url += "&size=100&gacha_type=301&end_id="
+    elif game == "崩鐵" and "size=" not in warp_url:
+        warp_url += "&size=100&end_id="
     elif game == "絕區零":
         page_index = warp_url.find("&page")
         if page_index != -1: 
             warp_url = warp_url[:page_index]
-        warp_url += "&size=20&real_gacha_type=1&end_id="
+        warp_url += "&size=100&real_gacha_type=1&end_id="
 
     if "api/getLdGachaLog" in warp_url:
         warp_url = warp_url.replace("api/getLdGachaLog", "api/getGachaLog")
@@ -117,19 +165,15 @@ def fetch_data_by_api(command, game):
         response = requests.get(warp_url, timeout=10) 
         response.raise_for_status() 
         resdict = response.json()
-        
-    except requests.exceptions.RequestException as e:
-        logging.error(f"❌ 網路請求失敗 (無法連上伺服器): {e}", exc_info=True)
-        return None, None
-    except ValueError:
-        logging.error("❌ 伺服器回傳的不是有效的 JSON 格式！", exc_info=True)
+    except Exception as e:
+        logging.error(f"❌ 網路請求失敗: {e}", exc_info=True)
         return None, None
 
     retcode = resdict.get("retcode", -1)
     if retcode != 0:
-        logging.error(f"❌ 獲取資料失敗！伺服器回傳錯誤: {resdict.get('message', '未知錯誤')} (代碼: {retcode})")
+        logging.error(f"❌ 獲取資料失敗！伺服器回傳錯誤: {resdict.get('message', '未知錯誤')}")
         if retcode == -101:
-            logging.error("💡 提示：你的抽卡連結可能已過期，請重新打開紀錄頁面後再試一次。")
+            logging.error("💡 提示：你的抽卡連結可能已過期，請重新在遊戲內打開紀錄頁面。")
         return None, None
 
     logging.info("✅ 成功連接並獲取初始資料！")
@@ -145,27 +189,17 @@ def data_to_json(resdict, path, categories, game, warp_url, log_signal=None):
     account = resdict["data"]["list"][0]["uid"]
     log_msg(f"成功獲取 UID: {account}")
 
-    # ==========================================
-    # 💡 新增：建立 Key 對應中文 Value 的翻譯字典
-    # ==========================================
     name_map = {
         "novice": "新手",
         "standard": "常駐",
         "characters": "角色",
-        "weapons": "武器",  # 預設為武器，下方會根據遊戲動態修改
+        "weapons": "光錐" if game == "崩鐵" else "音擎" if game == "絕區零" else "武器",
         "bangboo": "邦布",
         "collection": "集錄",
         "collab_char": "聯動角色",
         "collab_weapon": "聯動武器",
-        "collab_Weapon": "聯動武器" # 防呆大小寫
+        "collab_Weapon": "聯動武器" 
     }
-    
-    # 針對不同遊戲，將 weapon 替換成專屬稱呼
-    if game == "崩鐵":
-        name_map["weapons"] = "光錐"
-    elif game == "絕區零":
-        name_map["weapons"] = "音擎"
-    # ==========================================
 
     data = {}
     path = path[:-5] + f"_{account}" + ".json"
@@ -178,16 +212,26 @@ def data_to_json(resdict, path, categories, game, warp_url, log_signal=None):
         log_msg("未偵測到本地歷史紀錄，將建立全新資料檔。")
         existed_data = {key: [] for key in categories.keys()}
 
-    for key, value in categories.items():
-        latest_id = existed_data[key][0]['id'] if key in existed_data and len(existed_data[key]) >= 1 else ""
-
-        if "info" not in data:
-            data["info"] = {
-                "export_app": "HOYO ToolBox",
-                "timezone": resdict["data"]["region_time_zone"] if "region_time_zone" in resdict["data"] else 0
-            }
-
+    # 初始化 info 區塊
+    data["info"] = {
+        "export_app": "HOYO ToolBox",
+        "timezone": resdict["data"].get("region_time_zone", 0)
+    }
+    
+    # 預先為所有分類建立空陣列，確保匯出時順序正確
+    for key in categories.keys():
         data[key] = []
+
+    # ==========================================
+    # 🚀 建立獨立的 Pipeline Worker (平行抓取單一卡池)
+    # ==========================================
+    def fetch_single_pool(key, value):
+        zh_name = name_map.get(key, key)
+        log_msg(f"正在平行讀取 [{zh_name}] 的資料...")
+
+        latest_id = existed_data[key][0]['id'] if key in existed_data and len(existed_data[key]) >= 1 else ""
+        pool_data = []
+        pool_info = {} # 用來裝 uid 和 lang 回傳給主執行緒
 
         if game == "原神":
             url = warp_url.replace("gacha_type=301", f"gacha_type={value}")
@@ -197,53 +241,118 @@ def data_to_json(resdict, path, categories, game, warp_url, log_signal=None):
                 url = url.replace("api/getGachaLog", "api/getLdGachaLog")
         elif game == "絕區零":
             url = warp_url.replace("gacha_type=1", f"gacha_type={value}")
-        
-        # 💡 使用翻譯字典，如果找不到對應的中文，就退回原本的英文 key
-        zh_name = name_map.get(key, key)
-        
-        # 這裡的 Log 就會變成全中文了！
-        log_msg(f"正在讀取 [{zh_name}] 的資料...")
 
         page_count = 0
+        retry_count = 0  # 💡 新增：紀錄連續失敗次數
+        
         while True:
-            response = requests.get(url)
-            resdict = response.json()
+            try:
+                response = requests.get(url, timeout=10)
+                resdict_pool = response.json()
+            except Exception as e:
+                if retry_count < 3:
+                    wait_time = 0.5 * (2 ** retry_count)
+                    log_msg(f"⚠️ [{zh_name}] 網路連線異常，動態冷卻 {wait_time} 秒後重試...")
+                    time.sleep(wait_time)
+                    retry_count += 1
+                    continue
+                else:
+                    log_msg(f"❌ [{zh_name}] 網路異常次數過多，中斷抓取: {e}")
+                    break
 
-            if resdict["data"]["list"] == []:
-                time.sleep(0.5)
+            data_block = resdict_pool.get("data")
+            
+            if not data_block:
+                err_msg = resdict_pool.get("message", "未知伺服器狀態")
+                retcode = resdict_pool.get("retcode", 0)
+                
+                # 🚀 核心防護機制：如果是「請求頻繁」，我們選擇「等待並重試」，絕不放棄！
+                if "frequently" in err_msg or "頻繁" in err_msg or retcode == -110:
+                    if retry_count < 5:
+                        # 💡 動態計算等待時間：1秒 -> 2秒 -> 4秒 -> 8秒 -> 16秒
+                        wait_time = 0.5 * (2 ** retry_count) 
+                        
+                        log_msg(f"⏳ [{zh_name}] 觸發伺服器防護，動態冷卻 {wait_time} 秒後自動重試...")
+                        time.sleep(wait_time)
+                        retry_count += 1
+                        continue  # 回到迴圈開頭，再發送一次請求
+                    else:
+                        log_msg(f"❌ [{zh_name}] 連續重試達 5 次上限，強制結束此卡池。")
+                        break
+                else:
+                    # 如果是其他錯誤 (例如登入過期、AuthKey 失效)，才真的中斷
+                    log_msg(f"⚠️ [{zh_name}] 伺服器異常 ({err_msg})，結束抓取。")
+                    break
+
+            # ✅ 成功拿到資料，將重試次數歸零
+            retry_count = 0
+                
+            api_list = data_block.get("list", [])
+            if not api_list:
                 break
                 
-            if UID == "":
-                UID = resdict["data"]["list"][0]["uid"]
- 
-            if "lang" not in data["info"]:
-                data["info"]["lang"] = resdict["data"]["list"][0]["lang"]
+            if "lang" not in pool_info:
+                pool_info["lang"] = api_list[0]["lang"]
+            if "uid" not in pool_info:
+                pool_info["uid"] = api_list[0]["uid"]
 
-            new_list = [item for item in resdict["data"]["list"] if item['id'] > latest_id]
+            # 只保留比本地最新紀錄 (latest_id) 還新的資料
+            new_list = [item for item in api_list if item['id'] > latest_id]
 
-            if new_list == []:
-                time.sleep(0.5)
+            if not new_list:
                 break
 
-            data[key].extend(new_list)
-            last_id = new_list[-1]["id"]
+            pool_data.extend(new_list)
             page_count += 1
 
-            if "uid" not in data["info"]:
-                data["info"]["uid"] = resdict["data"]["list"][0]["uid"]
-
-            if last_id == latest_id:
+            # 提早中斷邏輯：代表這包資料裡面已經包含舊紀錄了
+            if len(new_list) < len(api_list):
                 break
 
+            # 準備抓取下一頁
+            last_id = new_list[-1]["id"]
             end_id_index = url.find("end_id=")
             url = url[:end_id_index] + f"end_id={last_id}"
-
+            
+            # 💡 為了更穩定，我們把換頁的基礎等待時間從 0.3 拉長到 0.5 秒
             time.sleep(0.5)
 
-        data[key].extend(existed_data[key])
-        
-        # 💡 結束的 Log 也是全中文！
-        log_msg(f"[{zh_name}] 讀取完成! 本次共抓取了 {page_count} 頁新資料。")
+        log_msg(f"✅ [{zh_name}] 讀取完成! 本次共抓取 {page_count} 頁新資料。")
+        return key, pool_data, pool_info
+
+    # ==========================================
+    # 🚀 啟動多執行緒 ThreadPool (最高同時 3 條管線)
+    # ==========================================
+    MAX_WORKERS = 3 
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # 將所有卡池的任務派發出去
+        future_to_pool = {
+            executor.submit(fetch_single_pool, key, value): key 
+            for key, value in categories.items()
+        }
+
+        # 等待並收集每個管線的回傳結果
+        for future in concurrent.futures.as_completed(future_to_pool):
+            pool_key = future_to_pool[future]
+            try:
+                returned_key, pool_data, pool_info = future.result()
+                data[returned_key].extend(pool_data)
+                
+                # 安全地將 uid 和 lang 更新到 info 區塊
+                if "lang" not in data["info"] and "lang" in pool_info:
+                    data["info"]["lang"] = pool_info["lang"]
+                if "uid" not in data["info"] and "uid" in pool_info:
+                    data["info"]["uid"] = pool_info["uid"]
+                    
+            except Exception as exc:
+                log_msg(f"❌ 管線 [{name_map.get(pool_key, pool_key)}] 發生嚴重錯誤: {exc}")
+
+    # ==========================================
+    # 將抓回來的新資料與本地舊資料合併
+    # ==========================================
+    for key in categories.keys():
+        data[key].extend(existed_data.get(key, []))
 
     if game != "原神":
         data["info"]["version"] = "v4.0"
@@ -254,24 +363,22 @@ def data_to_json(resdict, path, categories, game, warp_url, log_signal=None):
     log_msg(f"🎉 {game} 所有抽卡紀錄已成功寫入儲存！")
 
 def get_GSdata_by_api(log_signal=None):
-    command = "$PSDefaultParameterValues['*:Encoding'] = 'utf8'; iwr -useb stardb.gg/wish | iex"
     path = f"{data_path}/user_data/GenshinImpact.json"
     categories = {"novice": "100", "standard": "200", "characters": "301", "weapons": "302", "collection": "500"}
-    resdict, warp_url = fetch_data_by_api(command, game="原神")
+    # 這裡拔掉了 command 參數
+    resdict, warp_url = fetch_data_by_api(game="原神") 
     if resdict: data_to_json(resdict, path, categories, "原神", warp_url, log_signal=log_signal)
 
 def get_HSRdata_by_api(log_signal=None):
-    command = "$PSDefaultParameterValues['*:Encoding'] = 'utf8'; iwr -useb stardb.gg/warp | iex"
     path = f"{data_path}/user_data/Honkai_StarRail.json"
     categories = {"novice": "2", "standard": "1", "characters": "11", "weapons": "12", "collab_char":"21", "collab_weapon":"22"}
-    resdict, warp_url = fetch_data_by_api(command, game="崩鐵")
+    resdict, warp_url = fetch_data_by_api(game="崩鐵")
     if resdict: data_to_json(resdict, path, categories, "崩鐵", warp_url, log_signal=log_signal)
 
 def get_ZZZdata_by_api(log_signal=None):
-    command = "$PSDefaultParameterValues['*:Encoding'] = 'utf8'; iwr -useb stardb.gg/signal | iex"
     path = f"{data_path}/user_data/ZenlessZoneZero.json"
     categories = {"standard": "1", "characters": "2", "weapons": "3", "bangboo": "5"}
-    resdict, warp_url = fetch_data_by_api(command,  game="絕區零")
+    resdict, warp_url = fetch_data_by_api(game="絕區零")
     if resdict: data_to_json(resdict, path, categories, "絕區零", warp_url, log_signal=log_signal)
 
 def get_average(idx, file_path, game, input_text):

@@ -813,8 +813,14 @@ class MainWindow(QWidget):
                         # 只在限定池（排除新手、常駐）生效
                         if banner_name not in ["新手", "常駐"]:
                             # 2025/04/26 字串比較在標準 ISO 時間格式下是有效的
-                            if time_str >= "2025-04-26 00:00:00" and name in ["符玄", "刃", "希兒"] and selected_game == "崩鐵":
-                                is_standard = True
+                            if selected_game == "崩鐵":
+                                # 04/09 版本更新開服 (台灣時間 11:00)
+                                if time_str >= "2026-04-09 11:00:00" and name in ["符玄", "刃", "希兒"]:
+                                    is_standard = True
+                                    
+                                # 04/22 階段更新 (通常為台灣時間 12:00，若為開服則自行改為 11:00)
+                                if time_str >= "2026-04-22 11:00:00" and name in ["雲璃", "銀枝", "銀狼"]:
+                                    is_standard = True
                         
                         # 決定這張卡片要不要顯示「歪」標籤
                         is_wry = last_was_standard if banner_name not in ["新手", "常駐"] else False
@@ -853,7 +859,43 @@ class MainWindow(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
+    def lock_ui(self):
+        """鎖定所有控制項，防止執行中誤觸"""
+        self.btn_read.setEnabled(False)
+        self.btn_read.setText("讀取中請稍候...")  
+        self.btn_update.setEnabled(False)
+        self.account_combo.setEnabled(False)
+        self.external_combo.setEnabled(False)
+        self.export_combo.setEnabled(False)
+        
+        # 鎖定左側遊戲切換
+        for btn in self.GameIconGroup.buttons():
+            btn.setEnabled(False)
+            
+        # 🚀 新增：鎖定右側上方的卡池切換按鈕
+        for btn in self.GachaTypeButtonList:
+            btn.setEnabled(False)
+
+    def unlock_ui(self):
+        """解鎖所有控制項"""
+        self.btn_read.setEnabled(True)
+        self.btn_read.setText("讀取歷史紀錄")
+        self.btn_update.setEnabled(True)
+        self.account_combo.setEnabled(True)
+        self.external_combo.setEnabled(True)
+        self.export_combo.setEnabled(True)
+        
+        # 解鎖左側遊戲切換
+        for btn in self.GameIconGroup.buttons():
+            btn.setEnabled(True)
+            
+        # 🚀 新增：解鎖右側上方的卡池切換按鈕
+        for btn in self.GachaTypeButtonList:
+            btn.setEnabled(True)
+
     def fetch_data(self):
+        self.lock_ui()
+
         selected_game = self.GameIconGroup.checkedButton().text()
         self.thread = FetchDataThread(selected_game)
         self.thread.update_signal.connect(lambda text: self.summary_label.setText(text))
@@ -862,6 +904,7 @@ class MainWindow(QWidget):
 
     def on_thread_finished(self):
         self.summary_label.setText("正在解析新獲得的角色與圖片，請稍候...")
+        self.unlock_ui()
         
         self.preload_thread = PreloadDictionaryThread()
         # 小精靈抓完圖片後，再真正去重繪畫面 (例如呼叫 change_game 或是你原本畫卡片的函式)
@@ -976,6 +1019,7 @@ class MainWindow(QWidget):
                 # ==========================================
                 # 🚀 3. 呼叫小精靈去掃描並下載新圖片！
                 # ==========================================
+                self.lock_ui()
                 self.summary_label.setText("正在載入最新圖片，請稍候...") # 加個提示讓體驗更好
                 
                 self.preload_thread = PreloadDictionaryThread()
