@@ -7,7 +7,9 @@ import zipfile
 import shutil
 import configparser
 import logging
-import concurrent.futures
+import pyperclip
+import subprocess
+
 from datetime import datetime
 
 local_folder_path = os.environ.get("LOCALAPPDATA")
@@ -25,78 +27,6 @@ logging.basicConfig(
 
 class HistoryURLNotFound(Exception):
     pass
-
-def get_warp_url_from_cache(game):
-    """直接解析本地遊戲快取來獲取抽卡網址，耗時 < 0.1秒"""
-    user_profile = os.environ.get("USERPROFILE")
-    if not user_profile: return None
-
-    # 1. 根據遊戲設定 Log 檔案路徑與特徵
-    if game == "原神":
-        log_path = os.path.join(user_profile, r"AppData\LocalLow\miHoYo\Genshin Impact\output_log.txt")
-        data_folder_name = "GenshinImpact_Data"
-    elif game == "崩鐵":
-        log_path = os.path.join(user_profile, r"AppData\LocalLow\Cognosphere\Star Rail\Player.log")
-        data_folder_name = "StarRail_Data"
-    elif game == "絕區零":
-        log_path = os.path.join(user_profile, r"AppData\LocalLow\Cognosphere\ZenlessZoneZero\Player.log")
-        if not os.path.exists(log_path): # 雙重檢查
-            log_path = os.path.join(user_profile, r"AppData\LocalLow\miHoYo\ZenlessZoneZero\Player.log")
-        data_folder_name = "ZenlessZoneZero_Data"
-    else:
-        return None
-
-    if not os.path.exists(log_path):
-        logging.error(f"找不到 {game} 的本地日誌檔，請確認是否在此電腦開啟過遊戲。")
-        return None
-
-    # 2. 從 Log 中找出遊戲安裝目錄
-    game_data_path = ""
-    try:
-        with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
-            log_content = f.read()
-            # 尋找類似 D:/Games/Star Rail/Games/StarRail_Data 的路徑
-            match = re.search(r"([A-Z]:[\\/].*?[\\/]" + data_folder_name + r")", log_content, re.IGNORECASE)
-            if match:
-                game_data_path = match.group(1).replace("/", "\\")
-    except Exception as e:
-        logging.error(f"讀取日誌失敗: {e}")
-        return None
-
-    if not game_data_path or not os.path.exists(game_data_path):
-        logging.error(f"無法從日誌中定位 {game} 的遊戲資料夾路徑。")
-        return None
-
-    # 3. 掃描 webCaches 資料夾，找出最新的 data_2 快取檔
-    web_caches_dir = os.path.join(game_data_path, "webCaches")
-    actual_cache_file = None
-    
-    if os.path.exists(web_caches_dir):
-        for root, dirs, files in os.walk(web_caches_dir):
-            if "data_2" in files:
-                temp_path = os.path.join(root, "data_2")
-                # 找出最後修改時間最新的 data_2
-                if actual_cache_file is None or os.path.getmtime(temp_path) > os.path.getmtime(actual_cache_file):
-                    actual_cache_file = temp_path
-
-    if not actual_cache_file:
-        logging.error(f"找不到 {game} 的網頁快取檔，請先在遊戲內打開抽卡紀錄！")
-        return None
-
-    # 4. 讀取二進位快取檔，精準挖出 AuthKey 網址
-    try:
-        with open(actual_cache_file, "r", encoding="utf-8", errors="ignore") as f:
-            cache_content = f.read()
-            # 正則表達式：抓取從 https 開始，包含 authkey= 的完整網址 (過濾掉不需要的字元)
-            urls = re.findall(r"https://[^\s\0\"'<]+authkey=[^\s\0\"'<#]+", cache_content)
-            if urls:
-                # 永遠回傳最後一個找到的網址 (因為它是最新的)
-                return urls[-1]
-    except Exception as e:
-        logging.error(f"解析快取網址失敗: {e}")
-        return None
-
-    return None
 
 # ==========================================
 # 定義全局常駐名單 (供 gui.py 判斷歪不歪使用)
@@ -133,26 +63,63 @@ def check_is_standard(game, banner_name, item_name):
 # 下面是你原本寫好的抓取與計算邏輯 (完全保留)
 # ==========================================
 
-def fetch_data_by_api(game):
-    logging.info(f"開始執行抓取流程，目標遊戲：{game}")
-    logging.info("正在透過 Python 解析本地快取以獲取抽卡網址...")
-    
-    warp_url = get_warp_url_from_cache(game)
-    
-    if not warp_url:
-        logging.error(f"❌ 嚴重錯誤：無法在本地快取中找到 {game} 的抽卡網址！請先在遊戲中開啟抽卡紀錄頁面。")
-        return None, None
+def fetch_data_by_api(game, log_signal=None):
+    def log_msg(msg):
+        logging.info(msg)
+        if log_signal:
+            log_signal.emit(msg)
+
+    log_msg(f"開始執行抓取流程，目標遊戲：{game}")
+    log_msg("正在背景呼叫 PowerShell 獲取抽卡網址...")
+
+    # 清空剪貼簿，避免讀到上一次的舊資料
+    pyperclip.copy("")
 
     # ==========================================
-    # 🚀 關鍵修復 1：網址大掃除！把原有的參數全部砍掉，避免衝突
+    # 🚀 終極隱身魔法：呼叫 PowerShell 但絕對不顯示黑框！
     # ==========================================
-    warp_url = re.sub(r"&gacha_type=\d+", "", warp_url)
-    warp_url = re.sub(r"&real_gacha_type=\d+", "", warp_url)
+    # 根據你的遊戲，決定要呼叫的 PowerShell 腳本 (這裡以常見的腳本為例)
+    # 如果你之前有自己習慣的腳本網址，可以直接替換掉雙引號裡面的內容
+    if game == "原神":
+        ps_script = "iwr -useb stardb.gg/wish | iex"
+    elif game == "崩鐵": # 崩鐵 / 絕區零 共用
+        ps_script = "iwr -useb stardb.gg/warp | iex"
+    elif game == "絕區零":
+        ps_script = "iwr -useb stardb.gg/signal | iex"
+
+    try:
+        # creationflags=0x08000000 就是 Windows 底層用來「隱藏命令提示字元視窗」的魔法常數
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_script],
+            capture_output=True,
+            text=True,
+            creationflags=0x08000000 
+        )
+    except Exception as e:
+        log_msg(f"❌ 呼叫腳本失敗: {e}")
+        return None, None
+
+    # 給腳本一點點時間把網址塞進剪貼簿
+    time.sleep(0.5)
+    warp_url = pyperclip.paste().strip()
+
+    # 檢查剪貼簿有沒有成功拿到網址
+    if not warp_url or not warp_url.startswith("https"):
+        log_msg("❌ 找不到網址！請先在遊戲中開啟「抽卡紀錄」頁面，或檢查網路連線。")
+        return None, None
+
+    log_msg(f"成功擷取網址 (長度 {len(warp_url)}): {warp_url[:100]}...")
+
+    # ==========================================
+    # 🧹 網址大掃除：清掉舊的卡池參數，避免抓錯池 (這是我們的心血結晶，必須保留！)
+    # ==========================================
+    warp_url = re.sub(r"\bgacha_type=\d+", "", warp_url)
+    warp_url = re.sub(r"\breal_gacha_type=\d+", "", warp_url)
     warp_url = re.sub(r"&size=\d+", "", warp_url)
     warp_url = re.sub(r"&end_id=[^&]*", "", warp_url)
     warp_url = re.sub(r"&page=\d+", "", warp_url)
 
-    # 針對不同遊戲補上預設的卡池代碼，否則初始連線測試會報錯
+    # 補上正確的預設參數
     if game == "原神":
         warp_url += "&gacha_type=301"
     elif game == "崩鐵":
@@ -160,30 +127,33 @@ def fetch_data_by_api(game):
     elif game == "絕區零":
         warp_url += "&real_gacha_type=1"
 
-    # 統一把 size 設為 100，並留下 end_id 的空位
     warp_url += "&size=100&end_id="
 
     if "api/getLdGachaLog" in warp_url:
         warp_url = warp_url.replace("api/getLdGachaLog", "api/getGachaLog")
 
-    logging.info("正在進行初始連接以獲取帳號資訊...")
+    log_msg("正在進行初始連接以獲取帳號資訊...")
     
     try:
         response = requests.get(warp_url, timeout=10) 
         response.raise_for_status() 
         resdict = response.json()
     except Exception as e:
-        logging.error(f"❌ 網路請求失敗: {e}", exc_info=True)
+        log_msg(f"❌ 網路請求失敗: {e}")
         return None, None
 
     retcode = resdict.get("retcode", -1)
     if retcode != 0:
-        logging.error(f"❌ 獲取資料失敗！伺服器回傳錯誤: {resdict.get('message', '未知錯誤')}")
+        log_msg(f"❌ 獲取資料失敗！伺服器回傳錯誤: {resdict.get('message', '未知錯誤')}")
         if retcode == -101:
-            logging.error("💡 提示：你的抽卡連結可能已過期，請重新在遊戲內打開紀錄頁面。")
+            log_msg("💡 提示：你的抽卡連結可能已過期，請重新在遊戲內打開紀錄頁面。")
         return None, None
 
-    logging.info("✅ 成功連接並獲取初始資料！")
+    log_msg("✅ 成功連接並獲取初始資料！")
+    
+    # 貼心小舉動：抓完資料後，幫使用者把剪貼簿的落落長網址清掉
+    pyperclip.copy("")
+    
     return resdict, warp_url
 
 def data_to_json(resdict, path, categories, game, warp_url, log_signal=None):
