@@ -9,6 +9,7 @@ import configparser
 import logging
 import pyperclip
 import subprocess
+import concurrent
 
 from datetime import datetime
 
@@ -108,6 +109,10 @@ def fetch_data_by_api(game, log_signal=None):
         log_msg("❌ 找不到網址！請先在遊戲中開啟「抽卡紀錄」頁面，或檢查網路連線。")
         return None, None
 
+    # 🚀 關鍵修復：移除 URL 中的 fragment (#)，避免參數被 requests 忽略
+    if "#" in warp_url:
+        warp_url = warp_url.split("#")[0]
+
     log_msg(f"成功擷取網址 (長度 {len(warp_url)}): {warp_url[:100]}...")
 
     # ==========================================
@@ -162,8 +167,31 @@ def data_to_json(resdict, path, categories, game, warp_url, log_signal=None):
         if log_signal:
             log_signal.emit(msg)
 
-    UID = ""
-    account = resdict["data"]["list"][0]["uid"]
+    # 🚀 關鍵修復：優雅地獲取 UID，防止預設卡池為空時發生 IndexError
+    account = ""
+    if resdict.get("data", {}).get("list"):
+        account = resdict["data"]["list"][0]["uid"]
+    else:
+        log_msg("預設卡池無抽卡紀錄，正在嘗試從其他卡池獲取 UID...")
+        # 尋找其他卡池
+        for key, value in categories.items():
+            # 暴力替換卡池代碼
+            test_url = re.sub(r"gacha_type=\d+", f"gacha_type={value}", warp_url)
+            test_url = re.sub(r"real_gacha_type=\d+", f"real_gacha_type={value}", test_url)
+            try:
+                test_res = requests.get(test_url, timeout=10).json()
+                test_list = test_res.get("data", {}).get("list", [])
+                if test_list:
+                    account = test_list[0]["uid"]
+                    log_msg(f"成功從 [{key}] 卡池獲取 UID: {account}")
+                    break
+            except Exception:
+                continue
+                
+    if not account:
+        log_msg("❌ 無法獲取 UID，所有卡池皆無抽卡紀錄，請先在遊戲內進行至少一次抽卡。")
+        return
+
     log_msg(f"成功獲取 UID: {account}")
 
     name_map = {
@@ -190,10 +218,17 @@ def data_to_json(resdict, path, categories, game, warp_url, log_signal=None):
         existed_data = {key: [] for key in categories.keys()}
 
     # 初始化 info 區塊
+    # 🚀 關鍵修復：從舊資料中繼承 UID 與語言，避免增量更新失敗時遺失關鍵資訊
     data["info"] = {
         "export_app": "HOYO ToolBox",
-        "timezone": resdict["data"].get("region_time_zone", 0)
+        "timezone": resdict["data"].get("region_time_zone", 0),
+        "uid": existed_data.get("info", {}).get("uid", str(account)),
+        "lang": existed_data.get("info", {}).get("lang", "")
     }
+
+    # 補丁：確保 UID 絕對不會是空字串
+    if not data["info"]["uid"]:
+        data["info"]["uid"] = str(account)
     
     # 預先為所有分類建立空陣列，確保匯出時順序正確
     for key in categories.keys():

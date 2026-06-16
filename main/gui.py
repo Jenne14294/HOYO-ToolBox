@@ -6,7 +6,7 @@ import requests
 import sys
 import subprocess
 import time
-import concurrent.futures
+import concurrent
 
 import functions # 引入我們的大腦！
 import GenshinAPI
@@ -474,21 +474,24 @@ class PreloadDictionaryThread(QThread):
 
         def fetch_meta():
             nonlocal raw_gs_chars, raw_gs_wpns, raw_gs_loc, raw_hsr_chars, raw_hsr_wpns, raw_zzz_chars, raw_zzz_wpns
-            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                # 原神
-                f1 = executor.submit(lambda: session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/gi/avatars.json").json())
-                f2 = executor.submit(lambda: session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/gi/weapons.json").json())
-                f3 = executor.submit(lambda: session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/gi/locs.json").json())
-                # 崩鐵
-                f4 = executor.submit(lambda: session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/hsr/avatars.json").json())
-                f5 = executor.submit(lambda: session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/hsr/weapons.json").json())
-                # 絕區零
-                f6 = executor.submit(lambda: session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/zzz/avatars.json").json())
-                f7 = executor.submit(lambda: session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/zzz/weapons.json").json())
-                
-                raw_gs_chars, raw_gs_wpns, raw_gs_loc = f1.result(), f2.result(), f3.result()
-                raw_hsr_chars, raw_hsr_wpns = f4.result(), f5.result()
-                raw_zzz_chars, raw_zzz_wpns = f6.result(), f7.result()
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                    # 原神
+                    f1 = executor.submit(lambda: session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/gi/avatars.json", timeout=10).json())
+                    f2 = executor.submit(lambda: session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/gi/weapons.json", timeout=10).json())
+                    f3 = executor.submit(lambda: session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/gi/locs.json", timeout=10).json())
+                    # 崩鐵
+                    f4 = executor.submit(lambda: session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/hsr/avatars.json", timeout=10).json())
+                    f5 = executor.submit(lambda: session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/hsr/weapons.json", timeout=10).json())
+                    # 絕區零
+                    f6 = executor.submit(lambda: session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/zzz/avatars.json", timeout=10).json())
+                    f7 = executor.submit(lambda: session.get("https://raw.githubusercontent.com/EnkaNetwork/API-docs/refs/heads/master/store/zzz/weapons.json", timeout=10).json())
+                    
+                    raw_gs_chars, raw_gs_wpns, raw_gs_loc = f1.result(), f2.result(), f3.result()
+                    raw_hsr_chars, raw_hsr_wpns = f4.result(), f5.result()
+                    raw_zzz_chars, raw_zzz_wpns = f6.result(), f7.result()
+            except Exception as e:
+                print(f"❌ [背景作業] 無法取得線上對照表，將跳過圖片載入: {e}")
 
         fetch_meta()
         zh_tw = raw_gs_loc.get("zh-tw", raw_gs_loc.get("zh-TW", {}))
@@ -713,6 +716,7 @@ class MainWindow(QWidget):
 
     def on_dictionary_ready(self):
         self.summary_label.setText("圖庫載入完成！可以開始查詢紀錄囉！")
+        self.unlock_ui()
         self.change_game()
 
     def change_game(self):
